@@ -66,6 +66,33 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+  
+  /* Smooth theme transitions */
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  html.theme-transitioning * {
+    transition: background-color 0.3s ease, 
+                color 0.3s ease, 
+                border-color 0.3s ease,
+                box-shadow 0.3s ease !important;
+  }
+  
+  /* Ensure all color-related properties transition smoothly */
+  html.theme-transitioning {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  /* Smooth transitions for common UI elements */
+  html.theme-transitioning .bg-background,
+  html.theme-transitioning .bg-card,
+  html.theme-transitioning .bg-muted,
+  html.theme-transitioning .text-foreground,
+  html.theme-transitioning .text-muted-foreground,
+  html.theme-transitioning .border-border {
+    transition: all 0.3s ease !important;
+  }
 }
 
 @layer utilities {
