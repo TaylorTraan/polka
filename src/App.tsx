@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import AppLayout from '@/layouts/AppLayout';
 import Login from '@/pages/Login';
 import Home from '@/pages/Home';
+import Session from '@/pages/Session';
 import "./App.css";
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
                 }
               >
         <Route path="home" element={<Home />} />
+        <Route path="session/:id" element={<Session />} />
         <Route index element={<Navigate to="/app/home" replace />} />
       </Route>
       <Route
