@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +14,6 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [shake, setShake] = useState(false);
   
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -30,13 +28,9 @@ export default function Login() {
       if (success) navigate('/app/home');
       else {
         setError('Invalid credentials');
-        setShake(true);
-        setTimeout(() => setShake(false), 500);
       }
     } catch {
       setError('An error occurred. Please try again.');
-      setShake(true);
-      setTimeout(() => setShake(false), 500);
     } finally {
       setIsLoading(false);
     }
