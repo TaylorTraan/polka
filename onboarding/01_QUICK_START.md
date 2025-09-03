@@ -32,6 +32,31 @@ npm run tauri dev
 | **Build desktop app** | `npm run tauri build` |
 | **Preview production build** | `npm run preview` |
 
+## 📱 App Installation vs Terminal Usage
+
+**Want to install as a permanent app?**
+```bash
+# Build the desktop installer
+npm run tauri build
+
+# Install the generated DMG file:
+# src-tauri/target/release/bundle/dmg/polka_0.1.0_aarch64.dmg
+```
+
+**Prefer using from terminal only?**
+```bash
+# Web browser mode (recommended)
+npm run dev
+
+# Desktop window mode (for native features)
+npm run tauri dev
+```
+
+**To uninstall the app:**
+```bash
+rm -rf /Applications/polka.app
+```
+
 ## 🐛 Quick Fixes
 
 **Port already in use?**

@@ -48,13 +48,15 @@ Welcome to the Polka project onboarding documentation! This index will help you 
 
 ### **DevOps/Release Engineer Focus**
 1. **[Main Guide - Building Section](README.md#building--deployment)** - Understand build processes
-2. **[Development Workflow](DEVELOPMENT_WORKFLOW.md)** - Know development vs production modes
-3. **[Troubleshooting - Build Issues](TROUBLESHOOTING.md#tauri-build-failures)** - Handle deployment problems
+2. **[Main Guide - Distribution Section](README.md#desktop-app-distribution--installation)** - Learn app packaging and distribution
+3. **[Development Workflow](DEVELOPMENT_WORKFLOW.md)** - Know development vs production modes
+4. **[Troubleshooting - Build Issues](TROUBLESHOOTING.md#tauri-build-failures)** - Handle deployment problems
 
 ## 🔍 Finding Specific Information
 
 ### **By Topic**
 - **Setup & Installation** → [Main Guide](README.md#environment-setup)
+- **App Distribution & Installation** → [Main Guide](README.md#desktop-app-distribution--installation)
 - **Development Commands** → [Main Guide](README.md#development-commands)
 - **Testing Strategies** → [Development Workflow](DEVELOPMENT_WORKFLOW.md#testing-strategies)
 - **Performance Optimization** → [Development Workflow](DEVELOPMENT_WORKFLOW.md#performance-optimization)

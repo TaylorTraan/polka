@@ -1,21 +1,27 @@
 import { motion } from 'framer-motion';
-import { Mic, Square, Clock, Settings, Play } from 'lucide-react';
+import { Mic, Square, Clock, Settings, Play, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 
 interface RecordingControlsProps {
   isRecording: boolean;
+  isPaused: boolean;
   recordingTime: number;
   status: 'draft' | 'recording' | 'complete';
   onToggleRecording: () => void;
+  onPauseRecording?: () => void;
+  onResumeRecording?: () => void;
   onGenerateSummary?: () => void;
 }
 
 export default function RecordingControls({
   isRecording,
+  isPaused,
   recordingTime,
   status,
   onToggleRecording,
+  onPauseRecording,
+  onResumeRecording,
   onGenerateSummary
 }: RecordingControlsProps) {
   const formatTime = (seconds: number) => {
@@ -34,6 +40,9 @@ export default function RecordingControls({
       case 'draft':
         return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
       case 'recording':
+        if (isPaused) {
+          return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200';
+        }
         return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200';
       case 'complete':
         return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200';
@@ -43,6 +52,9 @@ export default function RecordingControls({
   };
 
   const getStatusLabel = (status: string) => {
+    if (status === 'recording' && isPaused) {
+      return 'PAUSED';
+    }
     return status.toUpperCase();
   };
 
@@ -66,8 +78,9 @@ export default function RecordingControls({
               animate={{ scale: 1 }}
               className="flex items-center gap-2 text-lg font-mono"
             >
-              <Clock className="w-5 h-5 text-red-600 dark:text-red-400" />
+              <Clock className={`w-5 h-5 ${isPaused ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`} />
               {formatTime(recordingTime)}
+              {isPaused && <span className="text-sm text-yellow-600 dark:text-yellow-400 ml-2">PAUSED</span>}
             </motion.div>
           )}
         </div>
@@ -86,30 +99,55 @@ export default function RecordingControls({
         </div>
       </div>
 
-      {/* Main Recording Button */}
-      <div className="flex justify-center mb-6">
-        <Button
-          size="lg"
-          onClick={onToggleRecording}
-          disabled={status === 'complete'}
-          className={`h-20 px-12 text-xl font-semibold transition-all duration-200 ${
-            isRecording 
-              ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200' 
-              : 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20'
-          }`}
-        >
-          {isRecording ? (
-            <>
+      {/* Main Recording Controls */}
+      <div className="flex justify-center gap-4 mb-6">
+        {!isRecording ? (
+          // Start Recording Button
+          <Button
+            size="lg"
+            onClick={onToggleRecording}
+            disabled={status === 'complete'}
+            className="h-20 px-12 text-xl font-semibold transition-all duration-200 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
+          >
+            <Mic className="w-8 h-8 mr-3" />
+            Start Recording
+          </Button>
+        ) : (
+          // Recording Controls
+          <>
+            {isPaused ? (
+              // Resume Button
+              <Button
+                size="lg"
+                onClick={onResumeRecording}
+                className="h-20 px-12 text-xl font-semibold transition-all duration-200 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200"
+              >
+                <Play className="w-8 h-8 mr-3" />
+                Resume
+              </Button>
+            ) : (
+              // Pause Button
+              <Button
+                size="lg"
+                onClick={onPauseRecording}
+                className="h-20 px-12 text-xl font-semibold transition-all duration-200 bg-yellow-600 hover:bg-yellow-700 shadow-lg shadow-yellow-200"
+              >
+                <Pause className="w-8 h-8 mr-3" />
+                Pause
+              </Button>
+            )}
+            
+            {/* Stop Button */}
+            <Button
+              size="lg"
+              onClick={onToggleRecording}
+              className="h-20 px-12 text-xl font-semibold transition-all duration-200 bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200"
+            >
               <Square className="w-8 h-8 mr-3" />
-              Stop Recording
-            </>
-          ) : (
-            <>
-              <Mic className="w-8 h-8 mr-3" />
-              Start Recording
-            </>
-          )}
-        </Button>
+              Stop
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Generate Summary Button */}
@@ -139,8 +177,15 @@ export default function RecordingControls({
           className="text-center text-sm text-muted-foreground"
         >
           <div className="flex items-center justify-center gap-2">
-            <div className="w-2 h-2 bg-red-600 dark:bg-red-400 rounded-full animate-pulse" />
-            Recording in progress... Click stop when finished
+            <div className={`w-2 h-2 rounded-full ${
+              isPaused 
+                ? 'bg-yellow-600 dark:bg-yellow-400' 
+                : 'bg-red-600 dark:bg-red-400 animate-pulse'
+            }`} />
+            {isPaused 
+              ? 'Recording paused... Click resume to continue or stop to finish'
+              : 'Recording in progress... Click pause to pause or stop to finish'
+            }
           </div>
         </motion.div>
       )}

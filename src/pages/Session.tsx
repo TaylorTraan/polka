@@ -26,6 +26,7 @@ export default function Session() {
   const navigate = useNavigate();
   const [session, setSession] = useState<SessionType | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcriptLines, setTranscriptLines] = useState<TranscriptLineData[]>([]);
   const [notes, setNotes] = useState<string>('');
@@ -102,8 +103,11 @@ export default function Session() {
       }
     };
 
-    if (session?.id && isRecording) {
+    if (session?.id && isRecording && !isPaused) {
       setupAudioLevelListener();
+    } else if (isPaused) {
+      // Set audio level to 0 when paused
+      setAudioLevel(0);
     }
 
     return () => {
@@ -111,16 +115,16 @@ export default function Session() {
         unlisten();
       }
     };
-  }, [session?.id, isRecording]);
+  }, [session?.id, isRecording, isPaused]);
 
   const handleBack = () => {
     navigate('/app/home');
   };
 
-  // Timer effect for recording
+  // Timer effect for recording (only increment when not paused)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isRecording) {
+    if (isRecording && !isPaused) {
       interval = setInterval(() => {
         setRecordingTime(prev => {
           const newTime = prev + 1;
@@ -130,7 +134,7 @@ export default function Session() {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isRecording]);
+  }, [isRecording, isPaused]);
 
   // Real-time speech recognition is now handled in the speech recognition useEffect above
 
@@ -149,6 +153,7 @@ export default function Session() {
         console.log('🛑 Stopping recording...');
         await invoke('cmd_stop_recording', { id: session.id });
         setIsRecording(false);
+        setIsPaused(false);
         setAudioLevel(0);
         
         // Update session status to complete
@@ -172,6 +177,7 @@ export default function Session() {
         
         await invoke('cmd_start_recording', { id: session.id });
         setIsRecording(true);
+        setIsPaused(false);
         
         // Update session status to recording
         await updateStatus({ id: session.id, status: 'recording' });
@@ -182,7 +188,44 @@ export default function Session() {
       setRecordingError(error instanceof Error ? error.message : 'Recording failed');
       // Reset state on error
       setIsRecording(false);
+      setIsPaused(false);
       setAudioLevel(0);
+    }
+  };
+
+  const handlePauseRecording = async () => {
+    console.log('⏸️ handlePauseRecording called');
+    if (!session?.id) {
+      setRecordingError('No session available');
+      return;
+    }
+
+    try {
+      setRecordingError(null);
+      await invoke('cmd_pause_recording', { id: session.id });
+      setIsPaused(true);
+      console.log('⏸️ Recording paused successfully');
+    } catch (error) {
+      console.error('Error pausing recording:', error);
+      setRecordingError(error instanceof Error ? error.message : 'Failed to pause recording');
+    }
+  };
+
+  const handleResumeRecording = async () => {
+    console.log('▶️ handleResumeRecording called');
+    if (!session?.id) {
+      setRecordingError('No session available');
+      return;
+    }
+
+    try {
+      setRecordingError(null);
+      await invoke('cmd_resume_recording', { id: session.id });
+      setIsPaused(false);
+      console.log('▶️ Recording resumed successfully');
+    } catch (error) {
+      console.error('Error resuming recording:', error);
+      setRecordingError(error instanceof Error ? error.message : 'Failed to resume recording');
     }
   };
 
@@ -451,9 +494,12 @@ export default function Session() {
         >
           <RecordingControls
             isRecording={isRecording}
+            isPaused={isPaused}
             recordingTime={recordingTime}
             status={session?.status || 'draft'}
             onToggleRecording={toggleRecording}
+            onPauseRecording={handlePauseRecording}
+            onResumeRecording={handleResumeRecording}
             onGenerateSummary={session?.status === 'complete' ? handleGenerateSummary : undefined}
           />
           
@@ -464,7 +510,7 @@ export default function Session() {
             transition={{ delay: 0.2 }}
             className="mt-4 flex justify-center"
           >
-            <VUMeter level={audioLevel} isRecording={isRecording} />
+            <VUMeter level={audioLevel} isRecording={isRecording && !isPaused} />
           </motion.div>
 
           {/* Error Display */}

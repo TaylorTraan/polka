@@ -223,9 +223,30 @@ static RECORDING_SESSIONS: Lazy<Mutex<HashMap<String, Arc<AtomicBool>>>> =
 static WAV_WRITERS: Lazy<Mutex<HashMap<String, Arc<Mutex<Option<WavWriter<BufWriter<File>>>>>>>> = 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+// Global pause state for sessions
+static PAUSED_SESSIONS: Lazy<Mutex<HashMap<String, Arc<AtomicBool>>>> = 
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+// Store audio segments for appending
+static AUDIO_SEGMENTS: Lazy<Mutex<HashMap<String, Vec<PathBuf>>>> = 
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+// Track segment counter for each session
+static SEGMENT_COUNTERS: Lazy<Mutex<HashMap<String, usize>>> = 
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
 pub fn is_recording(session_id: &str) -> bool {
     let sessions = RECORDING_SESSIONS.lock().unwrap();
     if let Some(flag) = sessions.get(session_id) {
+        flag.load(Ordering::Relaxed)
+    } else {
+        false
+    }
+}
+
+pub fn is_paused(session_id: &str) -> bool {
+    let paused = PAUSED_SESSIONS.lock().unwrap();
+    if let Some(flag) = paused.get(session_id) {
         flag.load(Ordering::Relaxed)
     } else {
         false
@@ -238,7 +259,17 @@ pub fn start_recording_simple(session_id: String, session_dir: PathBuf, app_hand
         return Err(anyhow!("Already recording"));
     }
 
-    let output_path = session_dir.join("audio.wav");
+    // Create a temporary segment file for this recording session
+    let segment_number = {
+        let mut counters = SEGMENT_COUNTERS.lock().unwrap();
+        let counter = counters.entry(session_id.clone()).or_insert(0);
+        let current = *counter;
+        *counter += 1;
+        current
+    };
+    
+    let segment_path = session_dir.join(format!("audio_segment_{}.wav", segment_number));
+    println!("🎙️ Creating segment file: {:?}", segment_path);
     
     println!("🎙️ Starting audio recording for session: {}", session_id);
 
@@ -287,21 +318,30 @@ pub fn start_recording_simple(session_id: String, session_dir: PathBuf, app_hand
         sample_format: hound::SampleFormat::Int,
     };
 
-    // Create WAV writer with BufWriter for better performance
-    let file = File::create(&output_path)?;
+    // Create WAV writer with BufWriter for better performance - write to segment file
+    let file = File::create(&segment_path)?;
     let buf_writer = BufWriter::new(file);
     let wav_writer = WavWriter::new(buf_writer, spec)?;
     let writer = Arc::new(Mutex::new(Some(wav_writer)));
 
-    // Set up recording flag
+    // Set up recording flag and pause state
     let recording_flag = Arc::new(AtomicBool::new(true));
+    let pause_flag = Arc::new(AtomicBool::new(false));
     {
         let mut sessions = RECORDING_SESSIONS.lock().unwrap();
         sessions.insert(session_id.clone(), Arc::clone(&recording_flag));
         
+        let mut paused = PAUSED_SESSIONS.lock().unwrap();
+        paused.insert(session_id.clone(), Arc::clone(&pause_flag));
+        
         // Store the writer for proper cleanup
         let mut writers = WAV_WRITERS.lock().unwrap();
         writers.insert(session_id.clone(), Arc::clone(&writer));
+        
+        // Add the segment path to the segments list
+        let mut segments = AUDIO_SEGMENTS.lock().unwrap();
+        let session_segments = segments.entry(session_id.clone()).or_insert_with(Vec::new);
+        session_segments.push(segment_path.clone());
     }
 
     // Set up level monitoring channel
@@ -371,6 +411,7 @@ pub fn start_recording_simple(session_id: String, session_dir: PathBuf, app_hand
     // Create the audio stream
     let writer_clone = Arc::clone(&writer);
     let recording_flag_clone2 = Arc::clone(&recording_flag);
+    let pause_flag_clone = Arc::clone(&pause_flag);
     let channels = config.channels;
 
     let stream = device.build_input_stream(
@@ -380,27 +421,38 @@ pub fn start_recording_simple(session_id: String, session_dir: PathBuf, app_hand
                 return;
             }
 
-            // Calculate RMS level for VU meter
+            // Calculate RMS level for VU meter (always calculate for UI feedback)
             let rms = calculate_rms(data);
             let _ = level_tx.send(rms);
 
-            // Write audio data to WAV file
-            if let Ok(mut writer_guard) = writer_clone.lock() {
-                if let Some(ref mut writer) = *writer_guard {
-                    if channels == 1 {
-                        // Mono: write samples directly
-                        for &sample in data {
-                            let sample_i16 = (sample * i16::MAX as f32) as i16;
-                            let _ = writer.write_sample(sample_i16);
+            // Only write audio data if not paused
+            if !pause_flag_clone.load(Ordering::Relaxed) {
+                // Write audio data to WAV file
+                if let Ok(mut writer_guard) = writer_clone.lock() {
+                    if let Some(ref mut writer) = *writer_guard {
+                        if channels == 1 {
+                            // Mono: write samples directly
+                            for &sample in data {
+                                let sample_i16 = (sample * i16::MAX as f32) as i16;
+                                if let Err(e) = writer.write_sample(sample_i16) {
+                                    eprintln!("🎙️ Error writing sample: {}", e);
+                                }
+                            }
+                        } else {
+                            // Multi-channel: convert to mono by averaging channels
+                            for chunk in data.chunks(channels as usize) {
+                                let mono_sample: f32 = chunk.iter().sum::<f32>() / chunk.len() as f32;
+                                let sample_i16 = (mono_sample * i16::MAX as f32) as i16;
+                                if let Err(e) = writer.write_sample(sample_i16) {
+                                    eprintln!("🎙️ Error writing sample: {}", e);
+                                }
+                            }
                         }
                     } else {
-                        // Multi-channel: convert to mono by averaging channels
-                        for chunk in data.chunks(channels as usize) {
-                            let mono_sample: f32 = chunk.iter().sum::<f32>() / chunk.len() as f32;
-                            let sample_i16 = (mono_sample * i16::MAX as f32) as i16;
-                            let _ = writer.write_sample(sample_i16);
-                        }
+                        eprintln!("🎙️ Warning: Writer is None in audio callback");
                     }
+                } else {
+                    eprintln!("🎙️ Warning: Could not lock writer in audio callback");
                 }
             }
         },
@@ -418,6 +470,160 @@ pub fn start_recording_simple(session_id: String, session_dir: PathBuf, app_hand
     Ok(())
 }
 
+pub fn pause_recording_simple(session_id: &str) -> Result<()> {
+    println!("⏸️ Pausing audio recording for session: {}", session_id);
+    
+    // Check if currently recording
+    if !is_recording(session_id) {
+        return Err(anyhow!("Not currently recording"));
+    }
+    
+    // Set pause flag
+    let paused = PAUSED_SESSIONS.lock().unwrap();
+    if let Some(pause_flag) = paused.get(session_id) {
+        pause_flag.store(true, Ordering::Relaxed);
+        
+        // Give a moment for any pending writes to complete
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        
+        // Finalize current segment but keep writer reference for stream callback
+        let writer_arc = {
+            let writers = WAV_WRITERS.lock().unwrap();
+            writers.get(session_id).cloned()
+        };
+        
+        if let Some(writer_arc) = writer_arc {
+            if let Ok(mut writer_guard) = writer_arc.lock() {
+                if let Some(wav_writer) = writer_guard.take() {
+                    match wav_writer.finalize() {
+                        Ok(_) => {
+                            println!("⏸️ Current segment finalized successfully");
+                            
+                            // Add a small delay to ensure file is fully written
+                            std::thread::sleep(std::time::Duration::from_millis(50));
+                            
+                            // Immediately append this segment to the main audio file
+                            if let Err(e) = append_current_segment_to_main(session_id) {
+                                println!("⚠️ Warning: Failed to append segment to main file: {}", e);
+                            }
+                        },
+                        Err(e) => println!("⚠️ Warning: Failed to finalize current segment: {}", e),
+                    }
+                }
+                // Keep the writer_guard but with None content - this prevents stream callback from writing
+            }
+        }
+        
+        println!("⏸️ Audio recording paused successfully");
+        Ok(())
+    } else {
+        Err(anyhow!("Session not found"))
+    }
+}
+
+pub fn resume_recording_simple(session_id: String, session_dir: PathBuf) -> Result<()> {
+    println!("▶️ Resuming audio recording for session: {}", session_id);
+    
+    // Check if currently recording and paused
+    if !is_recording(&session_id) {
+        return Err(anyhow!("Not currently recording"));
+    }
+    
+    if !is_paused(&session_id) {
+        return Err(anyhow!("Recording is not paused"));
+    }
+    
+    // Create a new segment file
+    let segment_number = {
+        let mut counters = SEGMENT_COUNTERS.lock().unwrap();
+        if let Some(counter) = counters.get_mut(&session_id) {
+            let current = *counter;
+            *counter += 1;
+            current
+        } else {
+            return Err(anyhow!("No segment counter found for session"));
+        }
+    };
+    
+    let segment_path = session_dir.join(format!("audio_segment_{}.wav", segment_number));
+    println!("▶️ Creating new segment file: {:?}", segment_path);
+    
+    // Create new WAV writer for the new segment with consistent format
+    // Get the sample rate from the main audio file if it exists, otherwise use 16kHz
+    let spec = {
+        let main_audio_path = session_dir.join("audio.wav");
+        if main_audio_path.exists() {
+            // Read spec from existing main file to ensure consistency
+            match hound::WavReader::open(&main_audio_path) {
+                Ok(reader) => {
+                    let existing_spec = reader.spec();
+                    println!("▶️ Using existing main file spec: channels={}, sample_rate={}, bits={}", 
+                            existing_spec.channels, existing_spec.sample_rate, existing_spec.bits_per_sample);
+                    existing_spec
+                },
+                Err(_) => {
+                    println!("▶️ Could not read main file spec, using default");
+                    WavSpec {
+                        channels: 1,
+                        sample_rate: 16000,
+                        bits_per_sample: 16,
+                        sample_format: hound::SampleFormat::Int,
+                    }
+                }
+            }
+        } else {
+            println!("▶️ No main file exists, using default spec");
+            WavSpec {
+                channels: 1,
+                sample_rate: 16000,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            }
+        }
+    };
+    
+    let file = File::create(&segment_path)?;
+    let buf_writer = BufWriter::new(file);
+    let wav_writer = WavWriter::new(buf_writer, spec)?;
+    let writer = Arc::new(Mutex::new(Some(wav_writer)));
+    
+    // Update the writer - replace the existing one or insert new one
+    {
+        let mut writers = WAV_WRITERS.lock().unwrap();
+        if let Some(existing_writer_arc) = writers.get(&session_id) {
+            // Replace the content of existing writer
+            if let Ok(mut existing_guard) = existing_writer_arc.lock() {
+                let new_wav_writer = {
+                    let file = File::create(&segment_path)?;
+                    let buf_writer = BufWriter::new(file);
+                    WavWriter::new(buf_writer, spec)?
+                };
+                *existing_guard = Some(new_wav_writer);
+                println!("▶️ Replaced existing writer with new segment writer");
+            }
+        } else {
+            // Insert new writer if none exists
+            writers.insert(session_id.clone(), writer);
+            println!("▶️ Inserted new writer for session");
+        }
+        
+        // Add new segment to the list
+        let mut segments = AUDIO_SEGMENTS.lock().unwrap();
+        let session_segments = segments.entry(session_id.clone()).or_insert_with(Vec::new);
+        session_segments.push(segment_path.clone());
+    }
+    
+    // Clear pause flag
+    let paused = PAUSED_SESSIONS.lock().unwrap();
+    if let Some(pause_flag) = paused.get(&session_id) {
+        pause_flag.store(false, Ordering::Relaxed);
+        println!("▶️ Audio recording resumed successfully");
+        Ok(())
+    } else {
+        Err(anyhow!("Session not found"))
+    }
+}
+
 pub fn stop_recording_simple(session_id: &str) -> Result<()> {
     println!("🎙️ Stopping audio recording for session: {}", session_id);
     
@@ -427,13 +633,22 @@ pub fn stop_recording_simple(session_id: &str) -> Result<()> {
         sessions.remove(session_id)
     };
     
+    // Remove pause flag and segment counter
+    {
+        let mut paused = PAUSED_SESSIONS.lock().unwrap();
+        paused.remove(session_id);
+        
+        let mut counters = SEGMENT_COUNTERS.lock().unwrap();
+        counters.remove(session_id);
+    }
+    
     if let Some(flag) = recording_flag {
         flag.store(false, Ordering::Relaxed);
         
         // Give a moment for any pending writes to complete
         std::thread::sleep(std::time::Duration::from_millis(100));
         
-        // Properly finalize the WAV file
+        // Properly finalize the current segment WAV file
         let writer = {
             let mut writers = WAV_WRITERS.lock().unwrap();
             writers.remove(session_id)
@@ -443,11 +658,24 @@ pub fn stop_recording_simple(session_id: &str) -> Result<()> {
             if let Ok(mut writer_guard) = writer_arc.lock() {
                 if let Some(wav_writer) = writer_guard.take() {
                     match wav_writer.finalize() {
-                        Ok(_) => println!("🎙️ WAV file finalized successfully"),
-                        Err(e) => println!("⚠️ Warning: Failed to finalize WAV file: {}", e),
+                        Ok(_) => {
+                            println!("🎙️ Final segment finalized successfully");
+                            
+                            // Append final segment to main audio file
+                            if let Err(e) = append_current_segment_to_main(session_id) {
+                                println!("⚠️ Warning: Failed to append final segment: {}", e);
+                            }
+                        },
+                        Err(e) => println!("⚠️ Warning: Failed to finalize final segment: {}", e),
                     }
                 }
             }
+        }
+        
+        // Clean up any remaining segments
+        if let Err(e) = combine_audio_segments(session_id) {
+            println!("⚠️ Warning: Failed to finalize audio segments: {}", e);
+            // Continue anyway - main audio file should be available
         }
         
         println!("🎙️ Audio recording stopped successfully");
@@ -455,4 +683,170 @@ pub fn stop_recording_simple(session_id: &str) -> Result<()> {
     } else {
         Err(anyhow!("Not currently recording"))
     }
+}
+
+fn append_current_segment_to_main(session_id: &str) -> Result<()> {
+    println!("🔗 Appending current segment to main audio file for session: {}", session_id);
+    
+    // Get the most recent segment and remove it from tracking
+    let current_segment_path = {
+        let mut segments = AUDIO_SEGMENTS.lock().unwrap();
+        if let Some(session_segments) = segments.get_mut(session_id) {
+            if session_segments.is_empty() {
+                println!("🔗 No segments found in tracking list");
+                return Err(anyhow!("No segments found"));
+            }
+            println!("🔗 Found {} segments in tracking list", session_segments.len());
+            // Remove and return the last segment
+            let segment = session_segments.pop().unwrap();
+            println!("🔗 Removed segment from tracking: {:?}", segment);
+            segment
+        } else {
+            println!("🔗 Session not found in segments tracking");
+            return Err(anyhow!("Session not found"));
+        }
+    };
+    
+    println!("🔗 Processing segment: {:?}", current_segment_path);
+    let main_audio_path = current_segment_path.parent().unwrap().join("audio.wav");
+    
+    // Verify segment file exists and has content
+    if !current_segment_path.exists() {
+        println!("🔗 ERROR: Segment file does not exist: {:?}", current_segment_path);
+        return Err(anyhow!("Segment file does not exist"));
+    }
+    
+    let segment_size = std::fs::metadata(&current_segment_path)?.len();
+    println!("🔗 Segment file size: {} bytes", segment_size);
+    
+    if segment_size == 0 {
+        println!("🔗 ERROR: Segment file is empty");
+        return Err(anyhow!("Segment file is empty"));
+    }
+    
+    // Check if main audio file already exists
+    if main_audio_path.exists() {
+        println!("🔗 Appending to existing main audio file");
+        
+        // Read existing main file
+        let mut main_reader = hound::WavReader::open(&main_audio_path)?;
+        let spec = main_reader.spec();
+        let main_samples: Result<Vec<i16>, _> = main_reader.samples().collect();
+        let main_samples = main_samples?;
+        
+        // Read current segment
+        let mut segment_reader = hound::WavReader::open(&current_segment_path)?;
+        let segment_spec = segment_reader.spec();
+        
+        // Log specs for debugging
+        println!("🔗 Main file spec: channels={}, sample_rate={}, bits={}", 
+                spec.channels, spec.sample_rate, spec.bits_per_sample);
+        println!("🔗 Segment spec: channels={}, sample_rate={}, bits={}", 
+                segment_spec.channels, segment_spec.sample_rate, segment_spec.bits_per_sample);
+        
+        if segment_spec != spec {
+            println!("⚠️ Warning: Segment spec mismatch with main file, but continuing");
+        }
+        
+        let segment_samples: Result<Vec<i16>, _> = segment_reader.samples().collect();
+        let segment_samples = segment_samples?;
+        
+        println!("🔗 Main file samples: {}, Segment samples: {}", main_samples.len(), segment_samples.len());
+        
+        // Create temporary file for the combined audio
+        let temp_path = main_audio_path.with_extension("temp.wav");
+        let mut writer = hound::WavWriter::create(&temp_path, spec)?;
+        
+        // Write main audio samples first
+        for sample in main_samples {
+            writer.write_sample(sample)?;
+        }
+        
+        // Then append segment samples
+        for sample in segment_samples {
+            writer.write_sample(sample)?;
+        }
+        
+        writer.finalize()?;
+        
+        // Replace main file with combined file
+        std::fs::rename(&temp_path, &main_audio_path)?;
+        
+        println!("🔗 Successfully appended segment to main audio file");
+    } else {
+        println!("🔗 Creating new main audio file from first segment");
+        // No main file exists, just rename the segment to be the main file
+        std::fs::rename(&current_segment_path, &main_audio_path)?;
+        println!("🔗 First segment became the main audio file");
+    }
+    
+    // Remove the segment file if it still exists (only if we copied it)
+    if current_segment_path.exists() {
+        if let Err(e) = std::fs::remove_file(&current_segment_path) {
+            println!("⚠️ Warning: Failed to remove segment file {:?}: {}", current_segment_path, e);
+        } else {
+            println!("🔗 Cleaned up segment file: {:?}", current_segment_path);
+        }
+    }
+    
+    Ok(())
+}
+
+fn combine_audio_segments(session_id: &str) -> Result<()> {
+    println!("🔗 Finalizing audio segments for session: {}", session_id);
+    
+    // Get remaining segments
+    let segments = {
+        let mut segments_map = AUDIO_SEGMENTS.lock().unwrap();
+        segments_map.remove(session_id).unwrap_or_default()
+    };
+    
+    // If there are any remaining segments, append the final one
+    if let Some(last_segment) = segments.last() {
+        let main_audio_path = last_segment.parent().unwrap().join("audio.wav");
+        
+        if !main_audio_path.exists() {
+            // If main file doesn't exist, just rename the last segment
+            std::fs::rename(last_segment, &main_audio_path)?;
+            println!("🔗 Final segment became the main audio file");
+        } else {
+            // Append the final segment to main file
+            let mut main_reader = hound::WavReader::open(&main_audio_path)?;
+            let spec = main_reader.spec();
+            let main_samples: Result<Vec<i16>, _> = main_reader.samples().collect();
+            let main_samples = main_samples?;
+            
+            let mut segment_reader = hound::WavReader::open(last_segment)?;
+            let segment_samples: Result<Vec<i16>, _> = segment_reader.samples().collect();
+            let segment_samples = segment_samples?;
+            
+            let temp_path = main_audio_path.with_extension("temp.wav");
+            let mut writer = hound::WavWriter::create(&temp_path, spec)?;
+            
+            // Write all samples
+            for sample in main_samples {
+                writer.write_sample(sample)?;
+            }
+            for sample in segment_samples {
+                writer.write_sample(sample)?;
+            }
+            
+            writer.finalize()?;
+            std::fs::rename(&temp_path, &main_audio_path)?;
+            
+            println!("🔗 Final segment appended to main audio file");
+        }
+        
+        // Clean up remaining segment files
+        for segment_path in &segments {
+            if segment_path.exists() {
+                if let Err(e) = std::fs::remove_file(segment_path) {
+                    println!("⚠️ Warning: Failed to remove segment file {:?}: {}", segment_path, e);
+                }
+            }
+        }
+    }
+    
+    println!("🔗 Audio finalization completed for session: {}", session_id);
+    Ok(())
 }
