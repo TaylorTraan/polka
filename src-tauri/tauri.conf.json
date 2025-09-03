@@ -12,9 +12,20 @@
   "app": {
     "windows": [
       {
-        "title": "polka",
-        "width": 800,
-        "height": 600
+        "title": "Polka",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1000,
+        "minHeight": 700,
+        "center": true,
+        "decorations": true,
+        "resizable": true,
+        "fullscreen": false,
+        "maximized": false,
+        "visible": true,
+        "closable": true,
+        "minimizable": true,
+        "maximizable": true
       }
     ],
     "security": {
