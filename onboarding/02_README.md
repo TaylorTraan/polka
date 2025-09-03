@@ -1,4 +1,4 @@
-# 🚀 Welcome to Polka - Engineer Onboarding Guide
+git# 🚀 Welcome to Polka - Engineer Onboarding Guide
 
 Welcome to the Polka project! This guide will walk you through everything you need to know to get started as a new engineer on the team.
 
@@ -166,6 +166,112 @@ npm run tauri build
 - Creates platform-specific installers
 - Outputs to `src-tauri/target/release/`
 - Supports Windows (.msi), macOS (.dmg), Linux (.AppImage)
+
+## 📦 Desktop App Distribution & Installation
+
+### Building the Desktop App
+
+The desktop app is built using Tauri, which creates native installers for each platform:
+
+```bash
+# Build the desktop application
+npm run tauri build
+```
+
+This command:
+1. **Builds the frontend**: Runs `npm run build` to create the React production build
+2. **Compiles Rust backend**: Compiles the Tauri Rust code
+3. **Creates installers**: Generates platform-specific installation packages
+4. **Bundles everything**: Packages the app with icons, metadata, and dependencies
+
+### Build Output Locations
+
+After running `npm run tauri build`, you'll find:
+
+```
+src-tauri/target/release/bundle/
+├── dmg/                              # macOS
+│   ├── polka_0.1.0_aarch64.dmg     # Disk image installer
+│   └── bundle_dmg.sh                # Build script
+├── macos/                           # macOS
+│   └── polka.app/                   # Application bundle
+└── share/                           # Shared resources
+```
+
+### macOS Installation Process
+
+**For Distribution:**
+1. **Build the app**: `npm run tauri build`
+2. **Locate the installer**: `src-tauri/target/release/bundle/dmg/polka_0.1.0_aarch64.dmg`
+3. **Share the DMG**: Send this file to users for installation
+
+**For Installation:**
+1. **Double-click** the `polka_0.1.0_aarch64.dmg` file
+2. **Drag** `polka.app` to the Applications folder
+3. **Launch** from Applications or Spotlight
+
+**For Uninstallation:**
+```bash
+# Remove the installed app
+rm -rf /Applications/polka.app
+
+# Or drag to trash from Applications folder
+```
+
+### Configuration
+
+The app's installation behavior is configured in `src-tauri/tauri.conf.json`:
+
+```json
+{
+  "productName": "polka",                    // App display name
+  "identifier": "com.taylortran.polka",      // Unique app identifier
+  "bundle": {
+    "active": true,                          // Enable installer creation
+    "targets": "all",                        // Build for all platforms
+    "icon": [                                // App icons
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.icns"
+    ]
+  }
+}
+```
+
+### Development vs Production
+
+| Mode | Command | Purpose | Installation |
+|------|---------|---------|--------------|
+| **Development** | `npm run tauri dev` | Testing & development | Temporary window only |
+| **Production** | `npm run tauri build` | Distribution | Creates installable app |
+
+**Key Differences:**
+- **Development mode**: Opens a temporary app window that closes when you stop the terminal
+- **Production build**: Creates a permanent app that can be installed and launched independently
+
+### Alternative: Terminal Usage
+
+If you prefer not to install the app permanently:
+
+```bash
+# Web browser mode (recommended for most users)
+npm run dev
+# Opens at http://localhost:1420
+
+# Desktop window mode (for native features)
+npm run tauri dev
+# Opens temporary desktop window
+```
+
+### Distribution Checklist
+
+Before distributing the desktop app:
+
+1. ✅ **Test the build**: `npm run tauri build`
+2. ✅ **Test installation**: Install the generated DMG on a clean system
+3. ✅ **Test functionality**: Ensure all features work in the installed app
+4. ✅ **Update version**: Increment version in `package.json` and `tauri.conf.json`
+5. ✅ **Document changes**: Update release notes and changelog
 
 ## 🐛 Troubleshooting
 

@@ -5,7 +5,7 @@ pub mod speech;
 
 use crate::db::{Database, create_session_folder};
 use crate::models::{Session, SessionStatus, TranscriptLine};
-use crate::audio::{start_recording_simple, stop_recording_simple};
+use crate::audio::{start_recording_simple, stop_recording_simple, pause_recording_simple, resume_recording_simple};
 use crate::speech::{start_speech_processing, stop_speech_processing};
 use std::process::{Child, Command};
 use anyhow::Result;
@@ -326,6 +326,83 @@ async fn cmd_start_recording(
 }
 
 #[tauri::command]
+async fn cmd_pause_recording(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!("⏸️ cmd_pause_recording called for session: {}", id);
+    
+    // Scope the database lock to avoid Send issues
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        
+        // Get session to ensure it exists
+        let _session = db.get_session(&id).map_err(|e| e.to_string())?
+            .ok_or("Session not found")?;
+    };
+    
+    // Pause recording
+    pause_recording_simple(&id)
+        .map_err(|e| format!("Failed to pause recording: {}", e))?;
+    
+    println!("⏸️ Recording paused successfully for session: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn cmd_resume_recording(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!("▶️ cmd_resume_recording called for session: {}", id);
+    
+    // Scope the database lock to avoid Send issues
+    let session_dir = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        
+        // Get session to ensure it exists
+        let _session = db.get_session(&id).map_err(|e| e.to_string())?
+            .ok_or("Session not found")?;
+        
+        // Get session directory and ensure it exists
+        let session_dir = get_session_dir(&id)?;
+        
+        // Create the session directory if it doesn't exist (for existing sessions)
+        std::fs::create_dir_all(&session_dir)
+            .map_err(|e| format!("Failed to create session directory: {}", e))?;
+        
+        session_dir
+    };
+    
+    // Resume recording
+    resume_recording_simple(id.clone(), session_dir)
+        .map_err(|e| format!("Failed to resume recording: {}", e))?;
+    
+    println!("▶️ Recording resumed successfully for session: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn cmd_get_recording_state(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    
+    // Get session to ensure it exists
+    let _session = db.get_session(&id).map_err(|e| e.to_string())?
+        .ok_or("Session not found")?;
+    
+    let is_recording = crate::audio::is_recording(&id);
+    let is_paused = crate::audio::is_paused(&id);
+    
+    Ok(serde_json::json!({
+        "is_recording": is_recording,
+        "is_paused": is_paused
+    }))
+}
+
+#[tauri::command]
 async fn cmd_stop_recording(
     id: String,
     state: State<'_, AppState>,
@@ -472,6 +549,11 @@ async fn cmd_play_audio(
 ) -> Result<(), String> {
     println!("🔊 cmd_play_audio called for session: {}", id);
     
+    // Check if currently recording
+    if crate::audio::is_recording(&id) {
+        return Err("Cannot play audio while recording is in progress. Please stop or pause the recording first.".to_string());
+    }
+    
     // Scope the database lock to avoid Send issues
     {
         let db = state.db.lock().map_err(|e| e.to_string())?;
@@ -568,6 +650,9 @@ pub fn run() {
             cmd_write_notes,
             cmd_read_notes,
             cmd_start_recording,
+            cmd_pause_recording,
+            cmd_resume_recording,
+            cmd_get_recording_state,
             cmd_stop_recording,
             cmd_play_audio,
             cmd_stop_audio,
