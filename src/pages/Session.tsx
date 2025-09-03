@@ -2,13 +2,17 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowLeft, Play, BookOpen } from 'lucide-react';
+import { listen } from '@tauri-apps/api/event';
+import { ArrowLeft, Play, Square, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSessionsStore } from '@/store/sessions';
 import { Session as SessionType } from '@/types/session';
 import { sessionsClient } from '@/lib/sessions';
 import PageTransition from '@/components/PageTransition';
+import VUMeter from '@/components/VUMeter';
+
+// Real-time transcription now handled in Rust backend
 import { 
   RecorderLayout, 
   RecordingControls, 
@@ -26,8 +30,13 @@ export default function Session() {
   const [transcriptLines, setTranscriptLines] = useState<TranscriptLineData[]>([]);
   const [notes, setNotes] = useState<string>('');
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [playbackTimeRemaining, setPlaybackTimeRemaining] = useState(0);
   const { sessions, updateStatus } = useSessionsStore();
   const recordingTimeRef = useRef(0);
+  // Real-time transcription handled in Rust backend via events
 
   useEffect(() => {
     console.log('🔍 Session loading effect - id from URL:', id);
@@ -77,6 +86,33 @@ export default function Session() {
     }
   }, [session?.id]);
 
+  // Listen for audio level events
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    const setupAudioLevelListener = async () => {
+      try {
+        unlisten = await listen<{ session_id: string; level: number }>('polka://audio-level', (event) => {
+          if (event.payload.session_id === session?.id) {
+            setAudioLevel(event.payload.level);
+          }
+        });
+      } catch (error) {
+        console.error('❌ Failed to setup audio level listener:', error);
+      }
+    };
+
+    if (session?.id && isRecording) {
+      setupAudioLevelListener();
+    }
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [session?.id, isRecording]);
+
   const handleBack = () => {
     navigate('/app/home');
   };
@@ -96,82 +132,31 @@ export default function Session() {
     return () => clearInterval(interval);
   }, [isRecording]);
 
-  // Mock transcript generation every 2 seconds while recording
-  useEffect(() => {
-    console.log('📹 Transcript generation effect triggered - isRecording:', isRecording, 'sessionId:', session?.id);
-    let interval: NodeJS.Timeout;
-    if (isRecording && session?.id) {
-      console.log('📹 Starting transcript generation for session:', session.id);
-      const generateTranscriptLine = async () => {
-        const mockTexts = [
-          "This is a sample transcript line that demonstrates the recording functionality.",
-          "The system is currently generating mock transcript data for testing purposes.",
-          "Each line appears every two seconds to simulate real-time transcription.",
-          "You can add bookmarks to important moments during the recording.",
-          "The transcript will auto-scroll to show the latest content.",
-          "This mock implementation shows how the UI will look and feel.",
-          "In the real version, this would be actual speech-to-text transcription.",
-          "The recording controls provide a professional interface for session management."
-        ];
-        
-        const randomText = mockTexts[Math.floor(Math.random() * mockTexts.length)];
-        const currentRecordingTime = recordingTimeRef.current;
-        const currentTimeMs = currentRecordingTime * 1000;
-        
-        // Add to frontend state first (for immediate UI feedback)
-        const newLine: TranscriptLineData = {
-          id: `line-${Date.now()}`,
-          timestamp: currentRecordingTime,
-          text: randomText,
-          speaker: 'Speaker'
-        };
-        
-        setTranscriptLines(prev => [...prev, newLine]);
-
-        // Then save to backend
-        try {
-          console.log('💾 About to save transcript line to backend...');
-          await sessionsClient.appendTranscriptLine(
-            session.id,
-            currentTimeMs,
-            'Speaker',
-            randomText
-          );
-          console.log('✅ Successfully saved transcript line to backend');
-        } catch (error) {
-          console.error('❌ Error saving transcript line:', error);
-        }
-      };
-
-      // Generate first line immediately
-      generateTranscriptLine();
-      
-      // Then generate every 2 seconds
-      interval = setInterval(generateTranscriptLine, 2000);
-    }
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [isRecording, session?.id]);
+  // Real-time speech recognition is now handled in the speech recognition useEffect above
 
   const toggleRecording = async () => {
     console.log('🎬 toggleRecording called - current isRecording:', isRecording);
+    if (!session?.id) {
+      setRecordingError('No session available');
+      return;
+    }
+
     try {
+      setRecordingError(null);
+      
       if (isRecording) {
         // Stop recording
         console.log('🛑 Stopping recording...');
+        await invoke('cmd_stop_recording', { id: session.id });
         setIsRecording(false);
-        if (session) {
-          // Update session status to complete
-          await updateStatus({ id: session.id, status: 'complete' });
-          setSession(prev => prev ? { ...prev, status: 'complete' } : null);
-        }
+        setAudioLevel(0);
+        
+        // Update session status to complete
+        await updateStatus({ id: session.id, status: 'complete' });
+        setSession(prev => prev ? { ...prev, status: 'complete' } : null);
       } else {
         // Start recording
         console.log('▶️ Starting recording...');
-        setIsRecording(true);
         
         // Only reset recording time if this is a fresh session (no existing transcripts)
         if (transcriptLines.length === 0) {
@@ -185,16 +170,19 @@ export default function Session() {
           recordingTimeRef.current = nextTime;
         }
         
-        if (session) {
-          // Update session status to recording
-          await updateStatus({ id: session.id, status: 'recording' });
-          setSession(prev => prev ? { ...prev, status: 'recording' } : null);
-        }
+        await invoke('cmd_start_recording', { id: session.id });
+        setIsRecording(true);
+        
+        // Update session status to recording
+        await updateStatus({ id: session.id, status: 'recording' });
+        setSession(prev => prev ? { ...prev, status: 'recording' } : null);
       }
     } catch (error) {
       console.error('Error in toggleRecording:', error);
+      setRecordingError(error instanceof Error ? error.message : 'Recording failed');
       // Reset state on error
       setIsRecording(false);
+      setAudioLevel(0);
     }
   };
 
@@ -228,6 +216,122 @@ export default function Session() {
       }
     }
   };
+
+  const handlePlayAudio = async () => {
+    if (!session?.id) {
+      setRecordingError('No session available');
+      return;
+    }
+
+    try {
+      setRecordingError(null);
+      setIsPlayingAudio(true);
+      
+      console.log('🔊 Getting audio duration for session:', session.id);
+      // First get the audio duration
+      const duration = await invoke<number>('cmd_get_audio_duration', { id: session.id });
+      console.log('🔊 Audio duration:', duration, 'seconds');
+      
+      console.log('🔊 Playing audio for session:', session.id);
+      // Then start playing the audio
+      await invoke('cmd_play_audio', { id: session.id });
+      
+      console.log('🔊 Audio playback started successfully');
+      
+      // Set up countdown timer for remaining playback time
+      setPlaybackTimeRemaining(Math.ceil(duration));
+      
+      const countdownInterval = setInterval(() => {
+        setPlaybackTimeRemaining(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            setIsPlayingAudio(false);
+            console.log('🔊 Audio playback completed');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      // Fallback timeout in case countdown doesn't work perfectly
+      const durationMs = Math.ceil(duration * 1000) + 500; // Add 500ms buffer
+      setTimeout(() => {
+        clearInterval(countdownInterval);
+        setIsPlayingAudio(false);
+        setPlaybackTimeRemaining(0);
+        console.log('🔊 Audio playback completed (fallback)');
+      }, durationMs);
+      
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      setRecordingError(error instanceof Error ? error.message : 'Failed to play audio');
+      setIsPlayingAudio(false);
+      setPlaybackTimeRemaining(0);
+    }
+  };
+
+  const handleStopAudio = async () => {
+    try {
+      console.log('🔊 Stopping audio playback');
+      await invoke('cmd_stop_audio');
+      setIsPlayingAudio(false);
+      setPlaybackTimeRemaining(0);
+      console.log('🔊 Audio playback stopped successfully');
+    } catch (error) {
+      console.error('Error stopping audio:', error);
+      // Even if the backend stop fails, reset the UI state
+      setIsPlayingAudio(false);
+      setPlaybackTimeRemaining(0);
+    }
+  };
+
+  // Cleanup playback state when session changes
+  useEffect(() => {
+    setIsPlayingAudio(false);
+    setPlaybackTimeRemaining(0);
+  }, [session?.id]);
+
+  // Listen for real-time transcription events from Rust backend
+  useEffect(() => {
+    if (!session?.id) return;
+
+    const unlisten = listen<{ session_id: string; text: string; timestamp: number }>('polka://transcript-line', async (event) => {
+      if (event.payload.session_id === session.id) {
+        console.log('🎤 Received transcript from backend:', event.payload.text);
+        
+        // Calculate recording time for consistent timestamps
+        const currentRecordingTime = recordingTimeRef.current;
+        
+        const newLine: TranscriptLineData = {
+          id: `line-${Date.now()}`,
+          timestamp: currentRecordingTime, // Use recording time for consistency
+          text: event.payload.text,
+          speaker: 'Speaker'
+        };
+        
+        // Add to frontend state immediately
+        setTranscriptLines(prev => [...prev, newLine]);
+
+        // Save to backend
+        try {
+          console.log('💾 Saving real-time transcript to backend...');
+          await sessionsClient.appendTranscriptLine(
+            session.id,
+            currentRecordingTime * 1000, // Convert to ms
+            'Speaker',
+            event.payload.text
+          );
+          console.log('✅ Successfully saved real-time transcript to backend');
+        } catch (error) {
+          console.error('❌ Error saving real-time transcript:', error);
+        }
+      }
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+    };
+  }, [session?.id]);
 
   // Debug function to test transcript operations
   const handleTestTranscript = async () => {
@@ -352,6 +456,29 @@ export default function Session() {
             onToggleRecording={toggleRecording}
             onGenerateSummary={session?.status === 'complete' ? handleGenerateSummary : undefined}
           />
+          
+          {/* VU Meter */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mt-4 flex justify-center"
+          >
+            <VUMeter level={audioLevel} isRecording={isRecording} />
+          </motion.div>
+
+          {/* Error Display */}
+          {recordingError && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-center"
+            >
+              <p className="text-red-800 dark:text-red-200 text-sm">
+                Recording Error: {recordingError}
+              </p>
+            </motion.div>
+          )}
         </motion.div>
 
         {/* Session Info */}
@@ -401,9 +528,23 @@ export default function Session() {
                 <BookOpen className="w-4 h-4 mr-2" />
                 View Notes
               </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <Play className="w-4 h-4 mr-2" />
-                Play Audio
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={isPlayingAudio ? handleStopAudio : handlePlayAudio}
+                disabled={!session?.audio_path}
+              >
+                {isPlayingAudio ? (
+                  <>
+                    <Square className="w-4 h-4 mr-2" />
+                    Stop Audio {playbackTimeRemaining > 0 ? `(${playbackTimeRemaining}s)` : ''}
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Play Audio
+                  </>
+                )}
               </Button>
               <Button variant="outline" className="w-full justify-start">
                 <BookOpen className="w-4 h-4 mr-2" />
