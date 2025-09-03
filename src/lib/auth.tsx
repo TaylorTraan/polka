@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check localStorage on mount
   useEffect(() => {
-    const authStatus = localStorage.getItem('polka-auth');
+    const authStatus = localStorage.getItem('auth');
     if (authStatus === 'true') {
       setIsAuthenticated(true);
     }
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<boolean> => {
     if (email === VALID_CREDENTIALS.email && password === VALID_CREDENTIALS.password) {
       setIsAuthenticated(true);
-      localStorage.setItem('polka-auth', 'true');
+      localStorage.setItem('auth', 'true');
       return true;
     }
     return false;
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setIsAuthenticated(false);
-    localStorage.removeItem('polka-auth');
+    localStorage.removeItem('auth');
   };
 
   return (
