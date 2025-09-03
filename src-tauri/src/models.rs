@@ -49,3 +49,10 @@ impl Default for SessionStatus {
         SessionStatus::Draft
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TranscriptLine {
+    pub t_ms: u64,
+    pub speaker: String,
+    pub text: String,
+}

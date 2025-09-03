@@ -6,3 +6,4 @@ export { default as TranscriptLine } from './TranscriptLine';
 export { default as CatchUpSummaryModal } from './CatchUpSummaryModal';
 
 export type { TranscriptLineData } from './TranscriptLine';
+export { convertTranscriptLine } from './TranscriptLine';

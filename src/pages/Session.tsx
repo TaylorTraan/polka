@@ -1,17 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { invoke } from '@tauri-apps/api/core';
 import { ArrowLeft, Play, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSessionsStore } from '@/store/sessions';
 import { Session as SessionType } from '@/types/session';
+import { sessionsClient } from '@/lib/sessions';
 import PageTransition from '@/components/PageTransition';
 import { 
   RecorderLayout, 
   RecordingControls, 
   CatchUpSummaryModal,
-  TranscriptLineData 
+  TranscriptLineData,
+  convertTranscriptLine
 } from '@/components/recorder';
 
 export default function Session() {
@@ -21,17 +24,58 @@ export default function Session() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcriptLines, setTranscriptLines] = useState<TranscriptLineData[]>([]);
+  const [notes, setNotes] = useState<string>('');
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const { sessions, updateStatus } = useSessionsStore();
+  const recordingTimeRef = useRef(0);
 
   useEffect(() => {
+    console.log('🔍 Session loading effect - id from URL:', id);
+    console.log('🔍 Available sessions:', sessions.map(s => ({ id: s.id, title: s.title })));
+    
     if (id && sessions.length > 0) {
       const foundSession = sessions.find(s => s.id === id);
+      console.log('🔍 Found session:', foundSession);
       if (foundSession) {
         setSession(foundSession);
+      } else {
+        console.log('🔍 No session found with ID:', id);
       }
+    } else {
+      console.log('🔍 Not loading session - id:', id, 'sessions length:', sessions.length);
     }
   }, [id, sessions]);
+
+  // Load existing transcript and notes when session is found
+  useEffect(() => {
+    if (session?.id) {
+                console.log('🔄 Loading session data for:', session.id);
+      const loadSessionData = async () => {
+        try {
+          // Load existing transcript
+          const backendTranscript = await sessionsClient.readTranscript(session.id);
+          console.log('📄 Loaded transcript lines:', backendTranscript.length);
+          
+          if (backendTranscript.length > 0) {
+            const frontendTranscript = backendTranscript.map((line, index) => 
+              convertTranscriptLine(line, index)
+            );
+            setTranscriptLines(frontendTranscript);
+          } else {
+            setTranscriptLines([]);
+          }
+
+          // Load existing notes
+          const existingNotes = await sessionsClient.readNotes(session.id);
+          setNotes(existingNotes);
+        } catch (error) {
+          console.error('❌ Error loading session data:', error);
+        }
+      };
+
+      loadSessionData();
+    }
+  }, [session?.id]);
 
   const handleBack = () => {
     navigate('/app/home');
@@ -42,7 +86,11 @@ export default function Session() {
     let interval: NodeJS.Timeout;
     if (isRecording) {
       interval = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        setRecordingTime(prev => {
+          const newTime = prev + 1;
+          recordingTimeRef.current = newTime; // Keep ref in sync
+          return newTime;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -50,10 +98,11 @@ export default function Session() {
 
   // Mock transcript generation every 2 seconds while recording
   useEffect(() => {
+    console.log('📹 Transcript generation effect triggered - isRecording:', isRecording, 'sessionId:', session?.id);
     let interval: NodeJS.Timeout;
-    if (isRecording) {
-      // Generate first line immediately
-      const generateTranscriptLine = () => {
+    if (isRecording && session?.id) {
+      console.log('📹 Starting transcript generation for session:', session.id);
+      const generateTranscriptLine = async () => {
         const mockTexts = [
           "This is a sample transcript line that demonstrates the recording functionality.",
           "The system is currently generating mock transcript data for testing purposes.",
@@ -66,13 +115,32 @@ export default function Session() {
         ];
         
         const randomText = mockTexts[Math.floor(Math.random() * mockTexts.length)];
+        const currentRecordingTime = recordingTimeRef.current;
+        const currentTimeMs = currentRecordingTime * 1000;
+        
+        // Add to frontend state first (for immediate UI feedback)
         const newLine: TranscriptLineData = {
           id: `line-${Date.now()}`,
-          timestamp: recordingTime,
-          text: randomText
+          timestamp: currentRecordingTime,
+          text: randomText,
+          speaker: 'Speaker'
         };
         
         setTranscriptLines(prev => [...prev, newLine]);
+
+        // Then save to backend
+        try {
+          console.log('💾 About to save transcript line to backend...');
+          await sessionsClient.appendTranscriptLine(
+            session.id,
+            currentTimeMs,
+            'Speaker',
+            randomText
+          );
+          console.log('✅ Successfully saved transcript line to backend');
+        } catch (error) {
+          console.error('❌ Error saving transcript line:', error);
+        }
       };
 
       // Generate first line immediately
@@ -81,13 +149,19 @@ export default function Session() {
       // Then generate every 2 seconds
       interval = setInterval(generateTranscriptLine, 2000);
     }
-    return () => clearInterval(interval);
-  }, [isRecording, recordingTime]);
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isRecording, session?.id]);
 
   const toggleRecording = async () => {
+    console.log('🎬 toggleRecording called - current isRecording:', isRecording);
     try {
       if (isRecording) {
         // Stop recording
+        console.log('🛑 Stopping recording...');
         setIsRecording(false);
         if (session) {
           // Update session status to complete
@@ -96,9 +170,21 @@ export default function Session() {
         }
       } else {
         // Start recording
+        console.log('▶️ Starting recording...');
         setIsRecording(true);
-        setRecordingTime(0);
-        setTranscriptLines([]);
+        
+        // Only reset recording time if this is a fresh session (no existing transcripts)
+        if (transcriptLines.length === 0) {
+          setRecordingTime(0);
+          recordingTimeRef.current = 0;
+        } else {
+          // Find the last transcript timestamp and continue from there
+          const lastTimestamp = Math.max(...transcriptLines.map(line => line.timestamp));
+          const nextTime = lastTimestamp + 1; // Continue 1 second after the last line
+          setRecordingTime(nextTime);
+          recordingTimeRef.current = nextTime;
+        }
+        
         if (session) {
           // Update session status to recording
           await updateStatus({ id: session.id, status: 'recording' });
@@ -127,6 +213,84 @@ export default function Session() {
 
   const handleGenerateSummary = () => {
     setShowSummaryModal(true);
+  };
+
+  const handleNotesChange = (newNotes: string) => {
+    setNotes(newNotes);
+  };
+
+  const handleSaveNotes = async () => {
+    if (session?.id) {
+      try {
+        await sessionsClient.writeNotes(session.id, notes);
+      } catch (error) {
+        console.error('Error saving notes:', error);
+      }
+    }
+  };
+
+  // Debug function to test transcript operations
+  const handleTestTranscript = async () => {
+    if (!session?.id) {
+      console.log('🧪 No session ID available for test');
+      return;
+    }
+    
+    console.log('🧪 Testing transcript operations with session ID:', session.id);
+    console.log('🧪 Available sessions:', sessions.map(s => ({ id: s.id, title: s.title, transcript_path: s.transcript_path })));
+    
+    try {
+      // First, test basic Tauri connectivity with a simple command
+      console.log('🧪 Step 0: Testing basic backend connectivity...');
+      try {
+        const testResult = await invoke('test_backend');
+        console.log('🧪 Backend test result:', testResult);
+      } catch (error) {
+        console.error('🧪 Backend test failed:', error);
+        return;
+      }
+      
+      console.log('🧪 Step 0.5: Testing session listing...');
+      const allSessions = await sessionsClient.listSessions();
+      console.log('🧪 Basic Tauri works - got sessions:', allSessions.length);
+      
+      // First, test if we can read existing data
+      console.log('🧪 Step 1: Reading existing transcript...');
+      const existingResult = await sessionsClient.readTranscript(session.id);
+      console.log('🧪 Existing transcript:', existingResult);
+      
+      // Test write
+      console.log('🧪 Step 2: Writing new transcript line...');
+      const testTime = Date.now();
+      await sessionsClient.appendTranscriptLine(
+        session.id, 
+        testTime, 
+        'Test Speaker', 
+        `Manual test line at ${new Date().toLocaleTimeString()}`
+      );
+      console.log('🧪 Test write completed');
+      
+      // Test read again
+      console.log('🧪 Step 3: Reading transcript after write...');
+      const result = await sessionsClient.readTranscript(session.id);
+      console.log('🧪 Test read result:', result);
+      
+      // Update UI
+      if (result.length > 0) {
+        console.log('🧪 Step 4: Converting and updating UI...');
+        const frontendTranscript = result.map((line, index) => {
+          const converted = convertTranscriptLine(line, index);
+          console.log('🧪 Converting:', line, '→', converted);
+          return converted;
+        });
+        console.log('🧪 Setting transcript lines:', frontendTranscript);
+        setTranscriptLines(frontendTranscript);
+      } else {
+        console.log('🧪 No transcript lines returned');
+      }
+    } catch (error) {
+      console.error('🧪 Test failed:', error);
+    }
   };
 
   if (!session) {
@@ -245,6 +409,14 @@ export default function Session() {
                 <BookOpen className="w-4 h-4 mr-2" />
                 View Transcript
               </Button>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={handleTestTranscript}
+              >
+                <BookOpen className="w-4 h-4 mr-2" />
+                🧪 Test Transcript
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
@@ -259,7 +431,10 @@ export default function Session() {
           <RecorderLayout
             transcriptLines={transcriptLines}
             isRecording={isRecording}
+            notes={notes}
             onAddBookmark={handleAddBookmark}
+            onNotesChange={handleNotesChange}
+            onSaveNotes={handleSaveNotes}
           />
         </motion.div>
       </div>

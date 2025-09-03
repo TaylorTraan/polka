@@ -136,6 +136,21 @@ fn get_data_dir() -> Result<PathBuf> {
     Ok(home.join(".polka").join("data"))
 }
 
+fn get_sessions_dir() -> Result<PathBuf> {
+    let data_dir = get_data_dir()?;
+    Ok(data_dir.join("sessions"))
+}
+
+pub fn create_session_folder(session_id: &str) -> Result<PathBuf> {
+    let sessions_dir = get_sessions_dir()?;
+    let session_dir = sessions_dir.join(session_id);
+    
+    // Create the session directory if it doesn't exist
+    fs::create_dir_all(&session_dir)?;
+    
+    Ok(session_dir)
+}
+
 pub fn init_db() -> Result<Database> {
     Database::new()
 }
