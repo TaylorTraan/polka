@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Layout } from '@/components/Layout';
-import { Login } from '@/pages/Login';
+import Login from '@/pages/Login';
 import { Home } from '@/pages/Home';
 import "./App.css";
 

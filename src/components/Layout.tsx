@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 
@@ -12,9 +12,16 @@ export function Layout() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-foreground">Polka</h2>
           <nav className="space-y-2">
-            <a href="/app/home" className="block px-3 py-2 rounded-md text-sm text-foreground hover:bg-accent">
+            <Link 
+              to="/app/home" 
+              className={`block px-3 py-2 rounded-md text-sm transition-colors ${
+                useLocation().pathname === '/app/home' 
+                  ? 'bg-accent text-accent-foreground' 
+                  : 'text-foreground hover:bg-accent'
+              }`}
+            >
               Home
-            </a>
+            </Link>
             {/* Add more nav items here */}
           </nav>
           <Button 
