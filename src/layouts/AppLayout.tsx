@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Library, Mic, Settings, LogOut, User, Menu, X, Circle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Home, Library, Mic, Settings, LogOut, User, Menu, X, Circle, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
+import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 const navigation = [
@@ -19,6 +20,7 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = () => {
     logout();
@@ -152,6 +154,26 @@ export default function AppLayout() {
 
           {/* User menu */}
           <div className="flex items-center space-x-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              className="text-muted-foreground hover:text-foreground transition-all duration-300"
+            >
+              <motion.div
+                key={theme}
+                initial={{ rotate: -90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                {theme === 'light' ? (
+                  <Moon className="w-4 h-4" />
+                ) : (
+                  <Sun className="w-4 h-4" />
+                )}
+              </motion.div>
+            </Button>
             <Button
               variant="ghost"
               size="sm"

@@ -1,10 +1,24 @@
 import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mic, Play, Clock, BookOpen } from 'lucide-react';
 import PageTransition from '@/components/PageTransition';
+import { SkeletonRow } from '@/components/ui/skeleton-row';
 
 export default function Home() {
+  // Simulate loading state for demo purposes
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate API call delay
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <PageTransition>
       <div className="p-8 max-w-6xl mx-auto">
@@ -101,10 +115,18 @@ export default function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No sessions yet. Start your first recording to see it here!</p>
-            </div>
+            {isLoading ? (
+              <div className="space-y-0">
+                {[0, 1, 2].map((index) => (
+                  <SkeletonRow key={index} index={index} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Play className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No sessions yet. Start your first recording to see it here!</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
