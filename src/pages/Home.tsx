@@ -2,10 +2,12 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mic, Play, Clock, BookOpen } from 'lucide-react';
+import PageTransition from '@/components/PageTransition';
 
 export default function Home() {
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <PageTransition>
+      <div className="p-8 max-w-6xl mx-auto">
       {/* Welcome Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -106,6 +108,7 @@ export default function Home() {
           </CardContent>
         </Card>
       </motion.div>
-    </div>
+      </div>
+    </PageTransition>
   );
 }

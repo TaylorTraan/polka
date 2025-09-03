@@ -77,13 +77,14 @@ export default function AppLayout() {
                   key={item.name}
                   whileHover={{ x: 4 }}
                   whileTap={{ scale: 0.98 }}
+                  className="relative"
                 >
                   <Button
                     variant="ghost"
                     className={cn(
-                      "w-full justify-start space-x-3 h-12 px-3 text-left",
+                      "w-full justify-start space-x-3 h-12 px-3 text-left relative",
                       isActive
-                        ? "bg-primary/10 text-primary border-r-2 border-primary"
+                        ? "text-primary"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                     onClick={() => navigate(item.href)}
@@ -91,6 +92,17 @@ export default function AppLayout() {
                     <item.icon className="w-5 h-5" />
                     <span className="lg:block">{item.name}</span>
                   </Button>
+                  
+                  {/* Active indicator underline */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeIndicator"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                    />
+                  )}
                 </motion.div>
               );
             })}
@@ -154,18 +166,7 @@ export default function AppLayout() {
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentPath}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="h-full"
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <Outlet />
         </main>
       </div>
     </div>
