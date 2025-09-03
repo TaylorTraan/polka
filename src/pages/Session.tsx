@@ -1,19 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Mic, Play, Square, BookOpen } from 'lucide-react';
+import { ArrowLeft, Play, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSessionsStore } from '@/store/sessions';
 import { Session as SessionType } from '@/types/session';
 import PageTransition from '@/components/PageTransition';
+import { 
+  RecorderLayout, 
+  RecordingControls, 
+  CatchUpSummaryModal,
+  TranscriptLineData 
+} from '@/components/recorder';
 
 export default function Session() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<SessionType | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const { sessions } = useSessionsStore();
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [transcriptLines, setTranscriptLines] = useState<TranscriptLineData[]>([]);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const { sessions, updateStatus } = useSessionsStore();
 
   useEffect(() => {
     if (id && sessions.length > 0) {
@@ -28,9 +37,96 @@ export default function Session() {
     navigate('/app/home');
   };
 
-  const toggleRecording = () => {
-    setIsRecording(!isRecording);
-    // TODO: Implement actual recording logic
+  // Timer effect for recording
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
+
+  // Mock transcript generation every 2 seconds while recording
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRecording) {
+      // Generate first line immediately
+      const generateTranscriptLine = () => {
+        const mockTexts = [
+          "This is a sample transcript line that demonstrates the recording functionality.",
+          "The system is currently generating mock transcript data for testing purposes.",
+          "Each line appears every two seconds to simulate real-time transcription.",
+          "You can add bookmarks to important moments during the recording.",
+          "The transcript will auto-scroll to show the latest content.",
+          "This mock implementation shows how the UI will look and feel.",
+          "In the real version, this would be actual speech-to-text transcription.",
+          "The recording controls provide a professional interface for session management."
+        ];
+        
+        const randomText = mockTexts[Math.floor(Math.random() * mockTexts.length)];
+        const newLine: TranscriptLineData = {
+          id: `line-${Date.now()}`,
+          timestamp: recordingTime,
+          text: randomText
+        };
+        
+        setTranscriptLines(prev => [...prev, newLine]);
+      };
+
+      // Generate first line immediately
+      generateTranscriptLine();
+      
+      // Then generate every 2 seconds
+      interval = setInterval(generateTranscriptLine, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording, recordingTime]);
+
+  const toggleRecording = async () => {
+    try {
+      if (isRecording) {
+        // Stop recording
+        setIsRecording(false);
+        if (session) {
+          // Update session status to complete
+          await updateStatus({ id: session.id, status: 'complete' });
+          setSession(prev => prev ? { ...prev, status: 'complete' } : null);
+        }
+      } else {
+        // Start recording
+        setIsRecording(true);
+        setRecordingTime(0);
+        setTranscriptLines([]);
+        if (session) {
+          // Update session status to recording
+          await updateStatus({ id: session.id, status: 'recording' });
+          setSession(prev => prev ? { ...prev, status: 'recording' } : null);
+        }
+      }
+    } catch (error) {
+      console.error('Error in toggleRecording:', error);
+      // Reset state on error
+      setIsRecording(false);
+    }
+  };
+
+  const handleAddBookmark = () => {
+    if (transcriptLines.length > 0) {
+      const lastLine = transcriptLines[transcriptLines.length - 1];
+      setTranscriptLines(prev => 
+        prev.map(line => 
+          line.id === lastLine.id 
+            ? { ...line, isBookmarked: true }
+            : line
+        )
+      );
+    }
+  };
+
+  const handleGenerateSummary = () => {
+    setShowSummaryModal(true);
   };
 
   if (!session) {
@@ -85,47 +181,13 @@ export default function Session() {
           transition={{ delay: 0.1 }}
           className="mb-8"
         >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mic className="w-5 h-5" />
-                Recording Controls
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <Button
-                  size="lg"
-                  onClick={toggleRecording}
-                  className={`h-16 px-8 text-lg font-semibold ${
-                    isRecording 
-                      ? 'bg-red-600 hover:bg-red-700' 
-                      : 'bg-primary hover:bg-primary/90'
-                  }`}
-                >
-                  {isRecording ? (
-                    <>
-                      <Square className="w-6 h-6 mr-3" />
-                      Stop Recording
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-6 h-6 mr-3" />
-                      Start Recording
-                    </>
-                  )}
-                </Button>
-                
-                <div className="text-sm text-muted-foreground">
-                  {isRecording ? (
-                    <span className="text-red-600 font-medium">● Recording...</span>
-                  ) : (
-                    <span>Click to start recording your session</span>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <RecordingControls
+            isRecording={isRecording}
+            recordingTime={recordingTime}
+            status={session?.status || 'draft'}
+            onToggleRecording={toggleRecording}
+            onGenerateSummary={session?.status === 'complete' ? handleGenerateSummary : undefined}
+          />
         </motion.div>
 
         {/* Session Info */}
@@ -187,29 +249,28 @@ export default function Session() {
           </Card>
         </motion.div>
 
-        {/* Placeholder for future recorder functionality */}
+        {/* Recorder Interface */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mt-8"
+          className="mt-8 h-[600px]"
         >
-          <Card>
-            <CardHeader>
-              <CardTitle>Recorder Interface</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <Mic className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium mb-2">Recorder Coming Soon</p>
-                <p className="text-sm">
-                  The audio recording interface will be implemented here in the next phase.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <RecorderLayout
+            transcriptLines={transcriptLines}
+            isRecording={isRecording}
+            onAddBookmark={handleAddBookmark}
+          />
         </motion.div>
       </div>
+
+      {/* Catch-Up Summary Modal */}
+      <CatchUpSummaryModal
+        isOpen={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+        sessionTitle={session?.title || ''}
+        recordingDuration={recordingTime}
+      />
     </PageTransition>
   );
 }
