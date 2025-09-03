@@ -6,13 +6,19 @@ import { TranscriptLineData } from './TranscriptLine';
 interface RecorderLayoutProps {
   transcriptLines: TranscriptLineData[];
   isRecording: boolean;
+  notes: string;
   onAddBookmark: () => void;
+  onNotesChange: (notes: string) => void;
+  onSaveNotes: () => void;
 }
 
 export default function RecorderLayout({
   transcriptLines,
   isRecording,
-  onAddBookmark
+  notes,
+  onAddBookmark,
+  onNotesChange,
+  onSaveNotes
 }: RecorderLayoutProps) {
   return (
     <motion.div
@@ -43,7 +49,12 @@ export default function RecorderLayout({
           transition={{ delay: 0.2 }}
           className="w-80 bg-card border rounded-lg shadow-sm overflow-hidden"
         >
-          <NotesHighlightsPane isRecording={isRecording} />
+          <NotesHighlightsPane 
+            isRecording={isRecording}
+            notes={notes}
+            onNotesChange={onNotesChange}
+            onSaveNotes={onSaveNotes}
+          />
         </motion.div>
       </div>
     </motion.div>

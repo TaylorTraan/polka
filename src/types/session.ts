@@ -21,3 +21,9 @@ export interface UpdateSessionStatusRequest {
   id: string;
   status: SessionStatus;
 }
+
+export interface TranscriptLine {
+  t_ms: number;
+  speaker: string;
+  text: string;
+}

@@ -1,12 +1,23 @@
 import { motion } from 'framer-motion';
 import { Clock, Bookmark } from 'lucide-react';
+import { TranscriptLine as BackendTranscriptLine } from '@/types/session';
 
 export interface TranscriptLineData {
   id: string;
   timestamp: number;
   text: string;
+  speaker?: string;
   isBookmarked?: boolean;
 }
+
+// Convert backend TranscriptLine to frontend TranscriptLineData
+export const convertTranscriptLine = (backendLine: BackendTranscriptLine, index: number): TranscriptLineData => ({
+  id: `line-${backendLine.t_ms}-${index}`,
+  timestamp: Math.floor(backendLine.t_ms / 1000), // Convert ms to seconds
+  text: backendLine.text,
+  speaker: backendLine.speaker,
+  isBookmarked: false,
+});
 
 interface TranscriptLineProps {
   line: TranscriptLineData;
@@ -34,6 +45,9 @@ export default function TranscriptLine({ line, isLatest = false }: TranscriptLin
       </div>
       
       <div className="flex-1">
+        {line.speaker && (
+          <p className="text-xs font-medium text-muted-foreground mb-1">{line.speaker}:</p>
+        )}
         <p className="text-sm leading-relaxed">{line.text}</p>
       </div>
       
