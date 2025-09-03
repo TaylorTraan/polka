@@ -1,9 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { Layout } from '@/components/Layout';
+import AppLayout from '@/layouts/AppLayout';
 import Login from '@/pages/Login';
-import { Home } from '@/pages/Home';
+import Home from '@/pages/Home';
 import "./App.css";
 
 function App() {
@@ -12,14 +12,14 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route
-        path="/app"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
+                    <Route
+                path="/app"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout />
+                  </ProtectedRoute>
+                }
+              >
         <Route path="home" element={<Home />} />
         <Route index element={<Navigate to="/app/home" replace />} />
       </Route>
