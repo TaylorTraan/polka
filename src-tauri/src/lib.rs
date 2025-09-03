@@ -1,8 +1,13 @@
 pub mod db;
 pub mod models;
+pub mod audio;
+pub mod speech;
 
 use crate::db::{Database, create_session_folder};
 use crate::models::{Session, SessionStatus, TranscriptLine};
+use crate::audio::{start_recording_simple, stop_recording_simple};
+use crate::speech::{start_speech_processing, stop_speech_processing};
+use std::process::{Child, Command};
 use anyhow::Result;
 use std::sync::Mutex;
 use std::str::FromStr;
@@ -15,6 +20,7 @@ use nanoid::nanoid;
 // Database state
 pub struct AppState {
     db: Mutex<Database>,
+    audio_process: Mutex<Option<Child>>,
 }
 
 // Helper function to get session directory
@@ -278,6 +284,260 @@ async fn cmd_read_notes(
         .map_err(|e| format!("Failed to read notes file: {}", e))
 }
 
+#[tauri::command]
+async fn cmd_start_recording(
+    id: String,
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!("🎙️ cmd_start_recording called for session: {}", id);
+    
+    // Scope the database lock to avoid Send issues
+    let session_dir = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        
+        // Get session to ensure it exists
+        let _session = db.get_session(&id).map_err(|e| e.to_string())?
+            .ok_or("Session not found")?;
+        
+        // Get session directory and ensure it exists
+        let session_dir = get_session_dir(&id)?;
+        
+        // Create the session directory if it doesn't exist (for existing sessions)
+        std::fs::create_dir_all(&session_dir)
+            .map_err(|e| format!("Failed to create session directory: {}", e))?;
+        
+        session_dir
+    };
+    
+    // Start recording
+    start_recording_simple(id.clone(), session_dir.clone(), app_handle.clone())
+        .map_err(|e| format!("Failed to start recording: {}", e))?;
+    
+    // Start speech processing
+    let audio_path = session_dir.join("audio.wav");
+    if let Err(e) = start_speech_processing(id.clone(), audio_path, app_handle).await {
+        eprintln!("❌ Failed to start speech processing: {}", e);
+        // Continue anyway - audio recording will still work
+    }
+    
+    println!("🎙️ Recording started successfully for session: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn cmd_stop_recording(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!("🎙️ cmd_stop_recording called for session: {}", id);
+    
+    // Scope the database lock to avoid Send issues
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        
+        // Get session to ensure it exists
+        let _session = db.get_session(&id).map_err(|e| e.to_string())?
+            .ok_or("Session not found")?;
+        
+        // Get session directory and ensure it exists
+        let session_dir = get_session_dir(&id)?;
+        
+        // Create the session directory if it doesn't exist (for existing sessions)
+        std::fs::create_dir_all(&session_dir)
+            .map_err(|e| format!("Failed to create session directory: {}", e))?;
+    };
+    
+    // Stop recording
+    stop_recording_simple(&id)
+        .map_err(|e| format!("Failed to stop recording: {}", e))?;
+    
+    // Stop speech processing
+    if let Err(e) = stop_speech_processing(&id) {
+        eprintln!("❌ Failed to stop speech processing: {}", e);
+        // Continue anyway - audio recording was stopped
+    }
+    
+    println!("🎙️ Recording stopped successfully for session: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn cmd_stop_audio(
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!("🔊 cmd_stop_audio called");
+    
+    let mut audio_process = state.audio_process.lock().map_err(|e| e.to_string())?;
+    if let Some(mut child) = audio_process.take() {
+        match child.kill() {
+            Ok(_) => {
+                let _ = child.wait();
+                println!("🔊 Audio playback stopped");
+                Ok(())
+            }
+            Err(e) => Err(format!("Failed to stop audio: {}", e))
+        }
+    } else {
+        Err("No audio is currently playing".to_string())
+    }
+}
+
+#[tauri::command]
+async fn cmd_get_audio_duration(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<f64, String> {
+    println!("🔊 cmd_get_audio_duration called for session: {}", id);
+    
+    // Scope the database lock to avoid Send issues
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        
+        // Get session to ensure it exists
+        let _session = db.get_session(&id).map_err(|e| e.to_string())?
+            .ok_or("Session not found")?;
+    };
+    
+    // Get the audio file path
+    let audio_path = get_session_file_path(&id, "audio.wav")?;
+    
+    // Check if audio file exists
+    if !audio_path.exists() {
+        return Err("No audio recording found for this session".to_string());
+    }
+    
+    // Get audio duration using afinfo (macOS built-in tool)
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        
+        let output = Command::new("afinfo")
+            .arg(&audio_path)
+            .output();
+            
+        match output {
+            Ok(result) => {
+                let output_str = String::from_utf8_lossy(&result.stdout);
+                
+                // Parse duration from afinfo output
+                // Look for "estimated duration: X.X seconds"
+                for line in output_str.lines() {
+                    if line.contains("estimated duration:") {
+                        if let Some(duration_part) = line.split("estimated duration:").nth(1) {
+                            if let Some(duration_str) = duration_part.trim().split_whitespace().next() {
+                                if let Ok(duration) = duration_str.parse::<f64>() {
+                                    println!("🔊 Audio duration: {} seconds", duration);
+                                    return Ok(duration);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback: estimate from file size (rough approximation)
+                let file_size = std::fs::metadata(&audio_path)
+                    .map_err(|e| format!("Failed to get file metadata: {}", e))?
+                    .len();
+                
+                // Rough estimate: 44100 Hz * 2 bytes * 1 channel = 88200 bytes per second
+                let estimated_duration = file_size as f64 / 88200.0;
+                println!("🔊 Estimated audio duration from file size: {} seconds", estimated_duration);
+                Ok(estimated_duration)
+            }
+            Err(e) => {
+                Err(format!("Failed to get audio duration: {}", e))
+            }
+        }
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Fallback for other platforms - estimate from file size
+        let file_size = std::fs::metadata(&audio_path)
+            .map_err(|e| format!("Failed to get file metadata: {}", e))?
+            .len();
+        
+        // Rough estimate: 44100 Hz * 2 bytes * 1 channel = 88200 bytes per second
+        let estimated_duration = file_size as f64 / 88200.0;
+        println!("🔊 Estimated audio duration from file size: {} seconds", estimated_duration);
+        Ok(estimated_duration)
+    }
+}
+
+#[tauri::command]
+async fn cmd_play_audio(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!("🔊 cmd_play_audio called for session: {}", id);
+    
+    // Scope the database lock to avoid Send issues
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        
+        // Get session to ensure it exists
+        let _session = db.get_session(&id).map_err(|e| e.to_string())?
+            .ok_or("Session not found")?;
+    };
+    
+    // Get the audio file path
+    let audio_path = get_session_file_path(&id, "audio.wav")?;
+    
+    // Check if audio file exists
+    if !audio_path.exists() {
+        return Err("No audio recording found for this session".to_string());
+    }
+    
+    // Stop any currently playing audio
+    {
+        let mut audio_process = state.audio_process.lock().map_err(|e| e.to_string())?;
+        if let Some(mut child) = audio_process.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+
+    // Play the audio file using system command
+    #[cfg(target_os = "macos")]
+    {
+        let child = Command::new("afplay")
+            .arg(&audio_path)
+            .spawn()
+            .map_err(|e| format!("Failed to start audio playback: {}", e))?;
+            
+        // Store the process so we can stop it later
+        {
+            let mut audio_process = state.audio_process.lock().map_err(|e| e.to_string())?;
+            *audio_process = Some(child);
+        }
+        
+        println!("🔊 Started playing audio file: {:?}", audio_path);
+        Ok(())
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        // For other platforms, we could use different commands
+        // For now, just open the file with the default application
+        use std::process::Command;
+        
+        let output = Command::new("open")
+            .arg(&audio_path)
+            .spawn();
+            
+        match output {
+            Ok(_) => {
+                println!("🔊 Opened audio file: {:?}", audio_path);
+                Ok(())
+            }
+            Err(e) => {
+                Err(format!("Failed to open audio: {}", e))
+            }
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize database
@@ -291,6 +551,7 @@ pub fn run() {
     
     let app_state = AppState {
         db: Mutex::new(db),
+        audio_process: Mutex::new(None),
     };
 
     tauri::Builder::default()
@@ -305,7 +566,12 @@ pub fn run() {
             cmd_append_transcript_line,
             cmd_read_transcript,
             cmd_write_notes,
-            cmd_read_notes
+            cmd_read_notes,
+            cmd_start_recording,
+            cmd_stop_recording,
+            cmd_play_audio,
+            cmd_stop_audio,
+            cmd_get_audio_duration
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
