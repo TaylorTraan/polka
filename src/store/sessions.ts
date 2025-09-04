@@ -66,6 +66,7 @@ export const useSessionsStore = create<SessionsState>((set) => ({
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update session status' 
       });
+      throw error; // Re-throw so caller can handle
     }
   },
 

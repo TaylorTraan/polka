@@ -17,13 +17,13 @@ export default function NotionLayout({
   isRecording,
   notes,
   onNotesChange,
-  onSaveNotes
+  onSaveNotes: _onSaveNotes
 }: NotionLayoutProps) {
   const [activeView, setActiveView] = useState<'notes' | 'transcript'>('notes');
 
   const handleNotesChange = (value: string) => {
     onNotesChange(value);
-    onSaveNotes(); // Instant save like Google Docs
+    // Note: Auto-save is now handled with debouncing in the parent component
   };
 
   return (

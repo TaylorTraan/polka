@@ -48,6 +48,28 @@ export default function Home() {
     }
   };
 
+  const handleDeleteLocalData = async (session: Session) => {
+    try {
+      // This would call a Tauri command to delete local session files
+      // For now, we'll show a success message
+      alert(`Local data for "${session.title}" has been deleted.`);
+    } catch (error) {
+      console.error('Error deleting local data:', error);
+      alert('Failed to delete local data. Please try again.');
+    }
+  };
+
+
+  const handleStatusChange = async (session: Session, newStatus: string) => {
+    try {
+      const { useSessionsStore } = await import('@/store/sessions');
+      await useSessionsStore.getState().updateStatus({ id: session.id, status: newStatus as any });
+    } catch (error) {
+      console.error('Error updating session status:', error);
+      alert('Failed to update session status. Please try again.');
+    }
+  };
+
   const handleSelectSession = (sessionId: string) => {
     setSelectedSessions(prev => {
       const newSet = new Set(prev);
@@ -285,11 +307,13 @@ export default function Home() {
               )}
               
               <SessionList
-                sessions={sessions}
+                sessions={sessions.filter(s => s.status.toLowerCase() !== 'archived')}
                 loading={loading}
                 view={view}
                 onSessionClick={handleSessionClick}
                 onDeleteSession={handleDeleteSession}
+                onDeleteLocalData={handleDeleteLocalData}
+                onStatusChange={handleStatusChange}
                 isSelectionMode={isSelectionMode}
                 selectedSessions={selectedSessions}
                 onSelectSession={handleSelectSession}

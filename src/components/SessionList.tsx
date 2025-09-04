@@ -10,6 +10,8 @@ interface SessionListProps {
   view: 'list' | 'grid';
   onSessionClick?: (session: Session) => void;
   onDeleteSession?: (session: Session) => void;
+  onDeleteLocalData?: (session: Session) => void;
+  onStatusChange?: (session: Session, newStatus: string) => void;
   isSelectionMode?: boolean;
   selectedSessions?: Set<string>;
   onSelectSession?: (sessionId: string) => void;
@@ -21,6 +23,8 @@ export const SessionList: React.FC<SessionListProps> = ({
   view,
   onSessionClick,
   onDeleteSession,
+  onDeleteLocalData,
+  onStatusChange,
   isSelectionMode = false,
   selectedSessions = new Set(),
   onSelectSession
@@ -81,6 +85,8 @@ export const SessionList: React.FC<SessionListProps> = ({
               session={session}
               onClick={() => onSessionClick?.(session)}
               onDelete={onDeleteSession}
+              onDeleteLocalData={onDeleteLocalData}
+              onStatusChange={onStatusChange}
               isSelectionMode={isSelectionMode}
               isSelected={selectedSessions.has(session.id)}
               onSelect={() => onSelectSession?.(session.id)}
@@ -105,6 +111,8 @@ export const SessionList: React.FC<SessionListProps> = ({
             session={session}
             onClick={() => onSessionClick?.(session)}
             onDelete={onDeleteSession}
+            onDeleteLocalData={onDeleteLocalData}
+            onStatusChange={onStatusChange}
             isSelectionMode={isSelectionMode}
             isSelected={selectedSessions.has(session.id)}
             onSelect={() => onSelectSession?.(session.id)}

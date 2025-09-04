@@ -1,9 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSessionsStore } from '@/store/sessions';
 import { Session as SessionType } from '@/types/session';
@@ -12,6 +11,7 @@ import PageTransition from '@/components/PageTransition';
 import VUMeter from '@/components/VUMeter';
 import NotionToolbar from '@/components/NotionToolbar';
 import NotionLayout from '@/components/NotionLayout';
+import { useTabsStore } from '@/store/tabs';
 
 // Real-time transcription now handled in Rust backend
 import { 
@@ -35,7 +35,11 @@ export default function Session() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [playbackTimeRemaining, setPlaybackTimeRemaining] = useState(0);
   const { sessions, updateStatus, delete: deleteSession } = useSessionsStore();
+  const { updateTab } = useTabsStore();
   const recordingTimeRef = useRef(0);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef = useRef(false);
+  const pendingNotesRef = useRef<string>('');
   // Real-time transcription handled in Rust backend via events
 
   useEffect(() => {
@@ -47,13 +51,34 @@ export default function Session() {
       console.log('🔍 Found session:', foundSession);
       if (foundSession) {
         setSession(foundSession);
+        
+        // Update tab title with session title
+        try {
+          const tabs = useTabsStore.getState().tabs;
+          const currentActiveTabId = useTabsStore.getState().activeTabId;
+          const currentActiveTab = tabs.find(tab => tab.id === currentActiveTabId);
+          if (currentActiveTab) {
+            updateTab(currentActiveTab.id, { 
+              title: foundSession.title,
+              path: `/app/session/${id}`,
+              icon: 'FileText'
+            });
+          }
+        } catch (error) {
+          console.error('Error updating tab title:', error);
+        }
       } else {
         console.log('🔍 No session found with ID:', id);
+        setSession(null);
       }
+    } else if (id && sessions.length === 0) {
+      // Sessions are still loading, don't set session to null yet
+      console.log('🔍 Sessions still loading...');
     } else {
       console.log('🔍 Not loading session - id:', id, 'sessions length:', sessions.length);
+      setSession(null);
     }
-  }, [id, sessions]);
+  }, [id, sessions, updateTab]);
 
   // Load existing transcript and notes when session is found
   useEffect(() => {
@@ -116,9 +141,6 @@ export default function Session() {
     };
   }, [session?.id, isRecording, isPaused]);
 
-  const handleBack = () => {
-    navigate('/app/home');
-  };
 
   // Timer effect for recording (only increment when not paused)
   useEffect(() => {
@@ -245,18 +267,62 @@ export default function Session() {
     setShowSummaryModal(true);
   };
 
+  // Debounced auto-save function
+  const saveNotesToServer = useCallback(async (notesToSave: string) => {
+    if (!session?.id || isSavingRef.current) return;
+    
+    isSavingRef.current = true;
+    try {
+      console.log('💾 Auto-saving notes...');
+      await sessionsClient.writeNotes(session.id, notesToSave);
+      console.log('✅ Notes saved successfully');
+    } catch (error) {
+      console.error('❌ Error saving notes:', error);
+      // Retry once after a short delay
+      setTimeout(() => {
+        if (session?.id) {
+          sessionsClient.writeNotes(session.id, notesToSave).catch(console.error);
+        }
+      }, 1000);
+    } finally {
+      isSavingRef.current = false;
+    }
+  }, [session?.id]);
+
+  // Immediate save function for critical moments (navigation, beforeunload)
+  const saveNotesImmediately = useCallback(async (notesToSave?: string) => {
+    const finalNotes = notesToSave ?? pendingNotesRef.current ?? notes;
+    if (!session?.id || !finalNotes) return;
+    
+    try {
+      await sessionsClient.writeNotes(session.id, finalNotes);
+      console.log('✅ Notes saved immediately');
+    } catch (error) {
+      console.error('❌ Error saving notes immediately:', error);
+    }
+  }, [session?.id, notes]);
+
   const handleNotesChange = (newNotes: string) => {
     setNotes(newNotes);
+    pendingNotesRef.current = newNotes;
+    
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // Set new timeout for debounced save
+    saveTimeoutRef.current = setTimeout(() => {
+      saveNotesToServer(newNotes);
+    }, 500); // 500ms debounce
   };
 
-  const handleSaveNotes = async () => {
-    if (session?.id) {
-      try {
-        await sessionsClient.writeNotes(session.id, notes);
-      } catch (error) {
-        console.error('Error saving notes:', error);
-      }
+  const handleSaveNotes = () => {
+    // For backward compatibility - trigger immediate save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
+    saveNotesToServer(pendingNotesRef.current || notes);
   };
 
   const handleDeleteSession = async () => {
@@ -388,6 +454,38 @@ export default function Session() {
     };
   }, [session?.id]);
 
+  // Cleanup and save on component unmount or navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingNotesRef.current && pendingNotesRef.current !== notes) {
+        // Save immediately before page unload
+        saveNotesImmediately(pendingNotesRef.current);
+        // Show browser warning if there are unsaved changes
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    // Add beforeunload listener
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup function
+    return () => {
+      // Save any pending changes immediately on unmount
+      if (pendingNotesRef.current || saveTimeoutRef.current) {
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+        }
+        if (pendingNotesRef.current && session?.id) {
+          // Use synchronous save for cleanup
+          sessionsClient.writeNotes(session.id, pendingNotesRef.current).catch(console.error);
+        }
+      }
+      
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [session?.id, notes, saveNotesImmediately]);
+
 
 
   if (!session) {
@@ -397,8 +495,7 @@ export default function Session() {
           <div className="text-center py-12">
             <div className="text-muted-foreground">
               <p className="text-lg font-medium mb-2">Session not found</p>
-              <Button onClick={handleBack} variant="outline">
-                <ArrowLeft className="w-4 h-4 mr-2" />
+              <Button onClick={() => navigate('/app/home')} variant="outline">
                 Back to Home
               </Button>
             </div>
@@ -410,18 +507,7 @@ export default function Session() {
 
   return (
     <PageTransition>
-      <div className="h-screen flex flex-col">
-        {/* Back Button - Fixed Position */}
-        <div className="absolute top-4 left-4 z-50">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBack}
-            className="h-10 w-10 p-0 bg-background/80 backdrop-blur border shadow-sm"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </div>
+      <div className="h-full flex flex-col">
 
         {/* Notion-style Toolbar */}
         <NotionToolbar

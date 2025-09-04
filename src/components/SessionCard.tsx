@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, BookOpen, Play, MoreVertical, Trash2, Check } from 'lucide-react';
+import { Clock, BookOpen, Play, MoreVertical, Trash2, Check, HardDrive, Archive, Edit3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { Session } from '@/types/session';
@@ -16,6 +20,8 @@ interface SessionCardProps {
   session: Session;
   onClick?: () => void;
   onDelete?: (session: Session) => void;
+  onDeleteLocalData?: (session: Session) => void;
+  onStatusChange?: (session: Session, newStatus: string) => void;
   className?: string;
   isSelectionMode?: boolean;
   isSelected?: boolean;
@@ -26,6 +32,8 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   session, 
   onClick, 
   onDelete,
+  onDeleteLocalData,
+  onStatusChange,
   className = '',
   isSelectionMode = false,
   isSelected = false,
@@ -33,6 +41,8 @@ export const SessionCard: React.FC<SessionCardProps> = ({
 }) => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeletingLocalData, setIsDeletingLocalData] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleDateString('en-US', {
       month: 'short',
@@ -43,10 +53,11 @@ export const SessionCard: React.FC<SessionCardProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'recording': return 'bg-red-100 text-red-800';
-      case 'complete': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'draft': return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
+      case 'recording': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'complete': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'archived': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
   };
 
@@ -55,6 +66,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
       case 'draft': return <Clock className="w-3 h-3" />;
       case 'recording': return <Play className="w-3 h-3" />;
       case 'complete': return <BookOpen className="w-3 h-3" />;
+      case 'archived': return <Archive className="w-3 h-3" />;
       default: return <Clock className="w-3 h-3" />;
     }
   };
@@ -63,6 +75,43 @@ export const SessionCard: React.FC<SessionCardProps> = ({
     e.stopPropagation(); // Prevent card click
     setShowDeleteDialog(true);
   };
+
+  const handleDeleteLocalDataClick = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    if (!onDeleteLocalData) return;
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to delete all local data for "${session.title}"?\n\nThis will remove all recordings, transcripts, and notes for this session. This action cannot be undone.`
+    );
+    
+    if (confirmed) {
+      setIsDeletingLocalData(true);
+      try {
+        await onDeleteLocalData(session);
+      } finally {
+        setIsDeletingLocalData(false);
+      }
+    }
+  };
+
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!onStatusChange) return;
+    
+    setIsArchiving(true);
+    try {
+      await onStatusChange(session, newStatus);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const statusOptions = [
+    { value: 'draft', label: 'Draft', icon: Clock, color: 'text-gray-600' },
+    { value: 'recording', label: 'Recording', icon: Play, color: 'text-red-600' },
+    { value: 'complete', label: 'Complete', icon: BookOpen, color: 'text-green-600' },
+    { value: 'archived', label: 'Archived', icon: Archive, color: 'text-blue-600' },
+  ];
 
   const handleDeleteConfirm = async () => {
     if (!onDelete) return;
@@ -77,7 +126,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   };
 
   const handleCardClick = () => {
-    if (isDeleting) return;
+    if (isDeleting || isDeletingLocalData || isArchiving) return;
     
     if (isSelectionMode) {
       onSelect?.();
@@ -129,7 +178,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                   {session.status}
                 </span>
                 
-                {onDelete && !isSelectionMode && (
+                {(onDelete || onDeleteLocalData || onStatusChange) && !isSelectionMode && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button 
@@ -137,19 +186,69 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                         size="sm" 
                         className="h-6 w-6 p-0 hover:bg-muted"
                         onClick={(e) => e.stopPropagation()}
+                        disabled={isDeletingLocalData || isArchiving}
                       >
                         <MoreVertical className="w-3 h-3" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem 
-                        className="text-xs text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
-                        onClick={handleDeleteClick}
-                        disabled={session.status === 'recording'}
-                      >
-                        <Trash2 className="w-3 h-3 mr-2" />
-                        Delete Session
-                      </DropdownMenuItem>
+                    <DropdownMenuContent align="end" className="w-48">
+                      {onStatusChange && (
+                        <>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="text-xs">
+                              <Edit3 className="w-3 h-3 mr-2" />
+                              Change Status
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent className="w-40">
+                              {statusOptions.map((status) => {
+                                const Icon = status.icon;
+                                const isCurrentStatus = session.status.toLowerCase() === status.value;
+                                const isDisabled = session.status === 'recording' && status.value !== 'recording';
+                                
+                                return (
+                                  <DropdownMenuItem
+                                    key={status.value}
+                                    className={`text-xs ${status.color} ${isCurrentStatus ? 'bg-accent' : ''}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStatusChange(status.value);
+                                    }}
+                                    disabled={isDisabled || isCurrentStatus}
+                                  >
+                                    <Icon className="w-3 h-3 mr-2" />
+                                    {status.label}
+                                    {isCurrentStatus && <Check className="w-3 h-3 ml-auto" />}
+                                  </DropdownMenuItem>
+                                );
+                              })}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
+                      {onDeleteLocalData && (
+                        <>
+                          <DropdownMenuItem 
+                            className="text-xs text-amber-600 dark:text-amber-400 focus:text-amber-600 dark:focus:text-amber-400"
+                            onClick={handleDeleteLocalDataClick}
+                            disabled={session.status === 'recording' || isDeletingLocalData}
+                          >
+                            <HardDrive className="w-3 h-3 mr-2" />
+                            {isDeletingLocalData ? 'Deleting...' : 'Delete Local Data'}
+                          </DropdownMenuItem>
+                          {onDelete && <DropdownMenuSeparator />}
+                        </>
+                      )}
+                      {onDelete && (
+                        <DropdownMenuItem 
+                          className="text-xs text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+                          onClick={handleDeleteClick}
+                          disabled={session.status === 'recording'}
+                        >
+                          <Trash2 className="w-3 h-3 mr-2" />
+                          Delete Session
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
