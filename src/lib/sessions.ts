@@ -14,6 +14,10 @@ export const sessionsClient = {
     await invoke('cmd_update_session_status', { ...request });
   },
 
+  async deleteSession(id: string): Promise<void> {
+    await invoke('cmd_delete_session', { id });
+  },
+
   // Transcript operations
   async appendTranscriptLine(id: string, t_ms: number, speaker: string, text: string): Promise<void> {
     try {

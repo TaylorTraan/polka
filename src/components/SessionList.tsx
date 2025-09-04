@@ -9,13 +9,21 @@ interface SessionListProps {
   loading: boolean;
   view: 'list' | 'grid';
   onSessionClick?: (session: Session) => void;
+  onDeleteSession?: (session: Session) => void;
+  isSelectionMode?: boolean;
+  selectedSessions?: Set<string>;
+  onSelectSession?: (sessionId: string) => void;
 }
 
 export const SessionList: React.FC<SessionListProps> = ({
   sessions,
   loading,
   view,
-  onSessionClick
+  onSessionClick,
+  onDeleteSession,
+  isSelectionMode = false,
+  selectedSessions = new Set(),
+  onSelectSession
 }) => {
   if (loading) {
     return (
@@ -72,6 +80,10 @@ export const SessionList: React.FC<SessionListProps> = ({
             <SessionCard
               session={session}
               onClick={() => onSessionClick?.(session)}
+              onDelete={onDeleteSession}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedSessions.has(session.id)}
+              onSelect={() => onSelectSession?.(session.id)}
             />
           </motion.div>
         ))}
@@ -92,6 +104,10 @@ export const SessionList: React.FC<SessionListProps> = ({
           <SessionCard
             session={session}
             onClick={() => onSessionClick?.(session)}
+            onDelete={onDeleteSession}
+            isSelectionMode={isSelectionMode}
+            isSelected={selectedSessions.has(session.id)}
+            onSelect={() => onSelectSession?.(session.id)}
             className="!cursor-pointer"
           />
         </motion.div>

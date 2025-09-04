@@ -3,7 +3,7 @@ pub mod models;
 pub mod audio;
 pub mod speech;
 
-use crate::db::{Database, create_session_folder};
+use crate::db::{Database, create_session_folder, delete_session_folder};
 use crate::models::{Session, SessionStatus, TranscriptLine};
 use crate::audio::{start_recording_simple, stop_recording_simple, pause_recording_simple, resume_recording_simple};
 use crate::speech::{start_speech_processing, stop_speech_processing};
@@ -95,6 +95,41 @@ async fn cmd_update_session_status(
         .map_err(|e| e.to_string())?;
     
     db.update_session_status(&id, &status_enum).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn cmd_delete_session(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!("🗑️ cmd_delete_session called for session: {}", id);
+    
+    let db = state.db.lock().map_err(|e| {
+        println!("❌ Failed to lock database: {}", e);
+        e.to_string()
+    })?;
+    
+    // First, delete from database
+    let deleted = db.delete_session(&id).map_err(|e| {
+        println!("❌ Failed to delete session from database: {}", e);
+        e.to_string()
+    })?;
+    
+    if !deleted {
+        println!("❌ Session not found in database: {}", id);
+        return Err("Session not found".to_string());
+    }
+    
+    // Then, delete session folder and all its files
+    delete_session_folder(&id).map_err(|e| {
+        println!("❌ Failed to delete session folder: {}", e);
+        // Don't fail the entire operation if folder deletion fails
+        println!("⚠️ Session deleted from database but folder deletion failed");
+        e.to_string()
+    })?;
+    
+    println!("✅ Successfully deleted session: {}", id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -645,6 +680,7 @@ pub fn run() {
             cmd_list_sessions,
             cmd_create_session,
             cmd_update_session_status,
+            cmd_delete_session,
             cmd_append_transcript_line,
             cmd_read_transcript,
             cmd_write_notes,
