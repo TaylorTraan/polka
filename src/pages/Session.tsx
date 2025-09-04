@@ -425,18 +425,6 @@ export default function Session() {
   return (
     <PageTransition>
       <div className="h-screen flex flex-col">
-        {/* Back Button - Fixed Position */}
-        <div className="absolute top-4 left-4 z-50">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBack}
-            className="h-10 w-10 p-0 bg-background/80 backdrop-blur border shadow-sm"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </div>
-
         {/* Notion-style Toolbar */}
         <NotionToolbar
           session={session}

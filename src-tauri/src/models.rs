@@ -14,11 +14,12 @@ pub struct Session {
     pub transcript_path: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionStatus {
     Draft,
     Recording,
     Complete,
+    Archived,
 }
 
 impl SessionStatus {
@@ -27,6 +28,7 @@ impl SessionStatus {
             SessionStatus::Draft => "draft",
             SessionStatus::Recording => "recording",
             SessionStatus::Complete => "complete",
+            SessionStatus::Archived => "archived",
         }
     }
 }
@@ -39,7 +41,8 @@ impl FromStr for SessionStatus {
             "draft" => Ok(SessionStatus::Draft),
             "recording" => Ok(SessionStatus::Recording),
             "complete" => Ok(SessionStatus::Complete),
-            _ => Err(format!("Invalid status: {}. Must be one of: draft, recording, complete", s)),
+            "archived" => Ok(SessionStatus::Archived),
+            _ => Err(format!("Invalid status: {}. Must be one of: draft, recording, complete, archived", s)),
         }
     }
 }
@@ -47,6 +50,25 @@ impl FromStr for SessionStatus {
 impl Default for SessionStatus {
     fn default() -> Self {
         SessionStatus::Draft
+    }
+}
+
+impl Serialize for SessionStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for SessionStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        SessionStatus::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 
