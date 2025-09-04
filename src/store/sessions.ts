@@ -11,6 +11,7 @@ interface SessionsState {
   load: () => Promise<void>;
   create: (request: CreateSessionRequest) => Promise<Session | null>;
   updateStatus: (request: UpdateSessionStatusRequest) => Promise<void>;
+  updateSessionNotes: (id: string, notes: string) => Promise<void>;
   delete: (id: string) => Promise<void>;
   clearError: () => void;
 }
@@ -65,6 +66,25 @@ export const useSessionsStore = create<SessionsState>((set) => ({
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update session status' 
+      });
+      throw error; // Re-throw so caller can handle
+    }
+  },
+
+  updateSessionNotes: async (id: string, notes: string) => {
+    try {
+      set({ error: null });
+      await sessionsClient.writeNotes(id, notes);
+      set(state => ({
+        sessions: state.sessions.map(session =>
+          session.id === id
+            ? { ...session, notes }
+            : session
+        )
+      }));
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update session notes' 
       });
       throw error; // Re-throw so caller can handle
     }

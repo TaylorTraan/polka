@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Archive, CheckCircle, X, AlertTriangle, FileText, Mic } from 'lucide-react';
+import { Archive, CheckCircle, X, AlertTriangle, FileText } from 'lucide-react';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components';
 import { Session } from '@/types';
 
@@ -14,7 +14,6 @@ interface BulkStatusChangeModalProps {
 
 const statusOptions = [
   { value: 'draft', label: 'Draft', icon: FileText, description: 'Mark sessions as draft' },
-  { value: 'recording', label: 'Recording', icon: Mic, description: 'Mark sessions as recording' },
   { value: 'complete', label: 'Complete', icon: CheckCircle, description: 'Mark sessions as complete' },
   { value: 'archived', label: 'Archived', icon: Archive, description: 'Archive sessions' },
 ];
@@ -97,7 +96,21 @@ export default function BulkStatusChangeModal({
                 <label className="text-sm font-medium">New Status:</label>
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select new status" />
+                    {selectedStatus ? (
+                      (() => {
+                        const selectedOption = statusOptions.find(option => option.value === selectedStatus);
+                        if (!selectedOption) return <SelectValue placeholder="Select new status" />;
+                        const Icon = selectedOption.icon;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4" />
+                            <span className="font-medium">{selectedOption.label}</span>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <SelectValue placeholder="Select new status" />
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {statusOptions.map((option) => {
@@ -106,10 +119,7 @@ export default function BulkStatusChangeModal({
                         <SelectItem key={option.value} value={option.value}>
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4" />
-                            <div>
-                              <div className="font-medium">{option.label}</div>
-                              <div className="text-xs text-muted-foreground">{option.description}</div>
-                            </div>
+                            <span className="font-medium">{option.label}</span>
                           </div>
                         </SelectItem>
                       );

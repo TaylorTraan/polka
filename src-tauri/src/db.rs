@@ -32,7 +32,7 @@ impl Database {
                 course TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
                 duration_ms INTEGER DEFAULT 0,
-                status TEXT NOT NULL CHECK (status IN ('draft', 'recording', 'complete')),
+                status TEXT NOT NULL CHECK (status IN ('draft', 'complete', 'archived')),
                 notes_path TEXT,
                 audio_path TEXT,
                 transcript_path TEXT

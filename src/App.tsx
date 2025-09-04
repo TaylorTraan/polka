@@ -1,10 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { ProtectedRoute } from '@/components';
+import { FullscreenProvider } from '@/contexts/FullscreenContext';
 import AppLayout from '@/layouts/AppLayout';
 import Login from '@/pages/Login';
 import Home from '@/pages/Home';
 import Session from '@/pages/Session';
+import Notes from '@/pages/Notes';
+import Transcript from '@/pages/Transcript';
 import Settings from '@/pages/Settings';
 import Archive from '@/pages/Archive';
 import Library from '@/pages/Library';
@@ -20,12 +23,16 @@ function App() {
                 path="/app"
                 element={
                   <ProtectedRoute>
-                    <AppLayout />
+                    <FullscreenProvider>
+                      <AppLayout />
+                    </FullscreenProvider>
                   </ProtectedRoute>
                 }
               >
         <Route path="home" element={<Home />} />
         <Route path="session/:id" element={<Session />} />
+        <Route path="notes/:sessionId" element={<Notes />} />
+        <Route path="transcript/:sessionId" element={<Transcript />} />
         <Route path="library" element={<Library />} />
         <Route path="archive" element={<Archive />} />
         <Route path="settings" element={<Settings />} />
