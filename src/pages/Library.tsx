@@ -16,7 +16,7 @@ import { useTabs } from '@/hooks/useTabs';
 
 type SortBy = 'created_at' | 'title' | 'duration_ms' | 'status';
 type SortOrder = 'asc' | 'desc';
-type StatusFilter = 'all' | 'draft' | 'recording' | 'complete' | 'archived';
+type StatusFilter = 'all' | 'draft' | 'complete' | 'archived';
 
 export default function Library() {
   const [view, setView] = useState<'list' | 'grid'>('grid');
@@ -209,7 +209,6 @@ export default function Library() {
                         <SelectContent>
                           <SelectItem value="all">All</SelectItem>
                           <SelectItem value="draft">Draft</SelectItem>
-                          <SelectItem value="recording">Recording</SelectItem>
                           <SelectItem value="complete">Complete</SelectItem>
                           <SelectItem value="archived">Archived</SelectItem>
                         </SelectContent>

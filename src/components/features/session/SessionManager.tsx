@@ -133,7 +133,6 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ className }) => 
                       className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
                       <option value="draft">Draft</option>
-                      <option value="recording">Recording</option>
                       <option value="complete">Complete</option>
                     </select>
                   </div>

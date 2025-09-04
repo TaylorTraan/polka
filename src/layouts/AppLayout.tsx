@@ -8,6 +8,7 @@ import { useTheme } from '@/lib/theme';
 import { TabBar } from '@/components';
 import { useTabsStore } from '@/store/tabs';
 import { useSessionsStore } from '@/store/sessions';
+import { useFullscreen } from '@/contexts/FullscreenContext';
 
 export default function AppLayout() {
   const location = useLocation();
@@ -16,6 +17,7 @@ export default function AppLayout() {
   const { theme, toggleTheme } = useTheme();
   const { addToHistory, updateTab } = useTabsStore();
   const { sessions } = useSessionsStore();
+  const { isFullscreen } = useFullscreen();
 
   const handleLogout = () => {
     logout();
@@ -69,8 +71,17 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      {/* Top bar with logo and user controls */}
-      <header className="h-12 bg-card border-b border-border px-4 flex items-center justify-between shrink-0">
+      {/* Top bar with logo and user controls - hidden in fullscreen mode */}
+      <motion.header
+        initial={false}
+        animate={{ 
+          height: isFullscreen ? 0 : 48,
+          opacity: isFullscreen ? 0 : 1,
+          marginBottom: isFullscreen ? 0 : 0
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        className="bg-card border-b border-border px-4 flex items-center justify-between shrink-0 overflow-hidden"
+      >
         {/* Logo */}
         <div className="flex items-center space-x-3">
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
@@ -160,15 +171,32 @@ export default function AppLayout() {
             </Button>
           </div>
         </div>
-      </header>
+      </motion.header>
 
-      {/* Tab bar */}
-      <TabBar />
+      {/* Tab bar - hidden in fullscreen mode */}
+      <motion.div
+        initial={false}
+        animate={{ 
+          height: isFullscreen ? 0 : "auto",
+          opacity: isFullscreen ? 0 : 1
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        className="overflow-hidden"
+      >
+        <TabBar />
+      </motion.div>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto bg-background">
+      <motion.main 
+        initial={false}
+        animate={{ 
+          marginTop: isFullscreen ? 0 : 0
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        className="flex-1 overflow-auto bg-background"
+      >
         <Outlet />
-      </main>
+      </motion.main>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, BookOpen, Play, MoreVertical, Trash2, Check, Archive, Edit3 } from 'lucide-react';
+import { Clock, BookOpen, MoreVertical, Trash2, Check, Archive, Edit3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components';
 import DeleteConfirmationDialog from '@/components/features/common/DeleteConfirmationDialog';
 import { Session } from '@/types';
@@ -53,7 +53,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
 
   const statusOptions = [
     { value: 'draft', label: 'Draft', icon: Clock, color: 'text-gray-600' },
-    { value: 'recording', label: 'Recording', icon: Play, color: 'text-red-600' },
     { value: 'complete', label: 'Complete', icon: BookOpen, color: 'text-green-600' },
     { value: 'archived', label: 'Archived', icon: Archive, color: 'text-blue-600' },
   ];
@@ -141,7 +140,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                               {statusOptions.map((status) => {
                                 const Icon = status.icon;
                                 const isCurrentStatus = session.status.toLowerCase() === status.value;
-                                const isDisabled = session.status === 'recording' && status.value !== 'recording';
                                 
                                 return (
                                   <DropdownMenuItem
@@ -151,7 +149,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                                       e.stopPropagation();
                                       handleStatusChange(status.value);
                                     }}
-                                    disabled={isDisabled || isCurrentStatus}
+                                    disabled={isCurrentStatus}
                                   >
                                     <Icon className="w-3 h-3 mr-2" />
                                     {status.label}
@@ -168,7 +166,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                         <DropdownMenuItem 
                           className="text-xs text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
                           onClick={handleDeleteClick}
-                          disabled={session.status === 'recording'}
                         >
                           <Trash2 className="w-3 h-3 mr-2" />
                           Delete Session

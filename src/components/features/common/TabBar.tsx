@@ -9,7 +9,8 @@ import {
   Archive, 
   Settings,
   FileText,
-  Plus
+  Plus,
+  MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components';
 import { useTabsStore, Tab } from '@/store/tabs';
@@ -21,6 +22,7 @@ const iconMap = {
   Archive,
   Settings,
   FileText,
+  MessageCircle,
 };
 
 export default function TabBar() {

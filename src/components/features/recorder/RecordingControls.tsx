@@ -8,7 +8,7 @@ interface RecordingControlsProps {
   isRecording: boolean;
   isPaused: boolean;
   recordingTime: number;
-  status: 'draft' | 'recording' | 'complete';
+  status: 'draft' | 'complete';
   onToggleRecording: () => void;
   onPauseRecording?: () => void;
   onResumeRecording?: () => void;

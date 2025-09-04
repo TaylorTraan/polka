@@ -7,6 +7,8 @@ import {
   Sparkles, 
   ChevronDown,
   Clock,
+  Eye,
+  EyeOff,
   Mic,
   Pause,
   Settings,
@@ -25,6 +27,7 @@ interface NotionToolbarProps {
   recordingTime: number;
   isPlayingAudio: boolean;
   playbackTimeRemaining: number;
+  isFullscreen: boolean;
   onToggleRecording: () => void;
   onPauseRecording: () => void;
   onResumeRecording: () => void;
@@ -33,6 +36,7 @@ interface NotionToolbarProps {
   onPlayAudio: () => void;
   onStopAudio: () => void;
   onDeleteSession: () => void;
+  onToggleFullscreen: () => void;
 }
 
 export default function NotionToolbar({
@@ -42,6 +46,7 @@ export default function NotionToolbar({
   recordingTime,
   isPlayingAudio,
   playbackTimeRemaining,
+  isFullscreen,
   onToggleRecording,
   onPauseRecording,
   onResumeRecording,
@@ -49,7 +54,8 @@ export default function NotionToolbar({
   onGenerateSummary,
   onPlayAudio,
   onStopAudio,
-  onDeleteSession
+  onDeleteSession,
+  onToggleFullscreen
 }: NotionToolbarProps) {
   const [showFileMenu, setShowFileMenu] = useState(false);
   const deleteDialog = useConfirmationDialog();
@@ -69,21 +75,131 @@ export default function NotionToolbar({
       animate={{ opacity: 1, y: 0 }}
       className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50"
     >
-      {/* Top Row - Session Title and File Menu */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border/50">
-        <div className="flex items-center gap-3">
-          <h1 className="text-base font-medium truncate max-w-[300px]">{session.title}</h1>
-          {session.course && (
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-              {session.course}
-            </span>
+      {/* Main Toolbar */}
+      <div className="flex items-center px-4 py-2 gap-1">
+        {/* Fullscreen Toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggleFullscreen}
+          className="h-7 px-2 text-xs fast-tooltip tooltip-left"
+          data-tooltip={isFullscreen ? "Show Tabs & Sections" : "Hide Tabs & Sections"}
+        >
+          {isFullscreen ? (
+            <EyeOff className="w-3 h-3" />
+          ) : (
+            <Eye className="w-3 h-3" />
+          )}
+        </Button>
+
+        <div className="w-px h-4 bg-border mx-1" />
+
+        {/* Recording Controls Group */}
+        <div className="flex items-center">
+          <Button
+            variant={isRecording ? "destructive" : "ghost"}
+            size="sm"
+            onClick={onToggleRecording}
+            className="h-7 px-2 text-xs fast-tooltip tooltip"
+            data-tooltip={isRecording ? "Stop Recording" : "Start Recording"}
+          >
+            {isRecording ? (
+              <Square className="w-3 h-3" />
+            ) : (
+              <Mic className="w-3 h-3" />
+            )}
+          </Button>
+
+          {isRecording && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={isPaused ? onResumeRecording : onPauseRecording}
+              className="h-7 px-2 fast-tooltip tooltip-right"
+              data-tooltip={isPaused ? "Resume Recording" : "Pause Recording"}
+            >
+              {isPaused ? (
+                <Play className="w-3 h-3" />
+              ) : (
+                <Pause className="w-3 h-3" />
+              )}
+            </Button>
           )}
         </div>
-        
+
+        {/* Timer */}
+        {isRecording && (
+          <>
+            <div className="w-px h-4 bg-border mx-1" />
+            <div 
+              className="flex items-center gap-1 px-2 py-0.5 bg-muted/50 rounded text-xs fast-tooltip"
+              data-tooltip={isPaused ? "Recording Paused" : "Recording in Progress"}
+            >
+              <Clock className={`w-3 h-3 ${isPaused ? 'text-yellow-600' : 'text-red-600'}`} />
+              <span className="font-mono">{formatTime(recordingTime)}</span>
+              {isPaused && <span className="text-yellow-600 ml-1">PAUSED</span>}
+            </div>
+          </>
+        )}
+
+        <div className="w-px h-4 bg-border mx-1" />
+
+        {/* Action Buttons */}
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onAddBookmark}
+            disabled={!isRecording}
+            className="h-7 px-2 fast-tooltip"
+            data-tooltip="Add Bookmark"
+          >
+            <Bookmark className="w-3 h-3" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={isPlayingAudio ? onStopAudio : onPlayAudio}
+            disabled={!session?.audio_path}
+            className="h-7 px-2 fast-tooltip"
+            data-tooltip={isPlayingAudio ? "Stop Audio" : "Play Audio"}
+          >
+            {isPlayingAudio ? (
+              <Square className="w-3 h-3" />
+            ) : (
+              <Play className="w-3 h-3" />
+            )}
+          </Button>
+
+          {session?.status === 'complete' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onGenerateSummary}
+              className="h-7 px-2 fast-tooltip"
+              data-tooltip="Generate Summary"
+            >
+              <Sparkles className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Session Menu */}
         <DropdownMenu open={showFileMenu} onOpenChange={setShowFileMenu}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-              File <ChevronDown className="w-3 h-3 ml-1" />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 px-2 text-xs fast-tooltip"
+              data-tooltip="Session Details"
+            >
+              <Settings className="w-3 h-3 mr-1" />
+              Session
+              <ChevronDown className="w-3 h-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">
@@ -91,6 +207,16 @@ export default function NotionToolbar({
               <div>
                 <h4 className="font-medium mb-2 text-sm">Session Details</h4>
                 <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Title:</span>
+                    <span className="truncate max-w-[150px]">{session.title}</span>
+                  </div>
+                  {session.course && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Course:</span>
+                      <span>{session.course}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status:</span>
                     <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(session.status, 'dark-aware')}`}>
@@ -111,11 +237,6 @@ export default function NotionToolbar({
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs">
-              <Settings className="w-3 h-3 mr-2" />
-              Session Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem 
               className="text-xs text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
               onClick={handleDeleteClick}
@@ -126,108 +247,19 @@ export default function NotionToolbar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {/* Bottom Row - Compact Toolbar */}
-      <div className="flex items-center px-4 py-1.5 gap-1">
-        {/* Recording Controls Group */}
-        <div className="flex items-center">
-          <Button
-            variant={isRecording ? "destructive" : "ghost"}
-            size="sm"
-            onClick={onToggleRecording}
-            className="h-7 px-2 text-xs"
-          >
-            {isRecording ? (
-              <Square className="w-3 h-3" />
-            ) : (
-              <Mic className="w-3 h-3" />
-            )}
-          </Button>
-
-          {isRecording && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={isPaused ? onResumeRecording : onPauseRecording}
-              className="h-7 px-2"
-            >
-              {isPaused ? (
-                <Play className="w-3 h-3" />
-              ) : (
-                <Pause className="w-3 h-3" />
-              )}
-            </Button>
-          )}
-        </div>
-
-        {/* Timer */}
-        {isRecording && (
-          <>
-            <div className="w-px h-4 bg-border mx-1" />
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-muted/50 rounded text-xs">
-              <Clock className={`w-3 h-3 ${isPaused ? 'text-yellow-600' : 'text-red-600'}`} />
-              <span className="font-mono">{formatTime(recordingTime)}</span>
-              {isPaused && <span className="text-yellow-600 ml-1">PAUSED</span>}
-            </div>
-          </>
-        )}
-
-        <div className="w-px h-4 bg-border mx-1" />
-
-        {/* Action Buttons */}
-        <div className="flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onAddBookmark}
-            disabled={!isRecording}
-            className="h-7 px-2"
-            title="Add Bookmark"
-          >
-            <Bookmark className="w-3 h-3" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={isPlayingAudio ? onStopAudio : onPlayAudio}
-            disabled={!session?.audio_path}
-            className="h-7 px-2"
-            title={isPlayingAudio ? "Stop Audio" : "Play Audio"}
-          >
-            {isPlayingAudio ? (
-              <Square className="w-3 h-3" />
-            ) : (
-              <Play className="w-3 h-3" />
-            )}
-          </Button>
-
-          {session?.status === 'complete' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onGenerateSummary}
-              className="h-7 px-2"
-              title="Generate Summary"
-            >
-              <Sparkles className="w-3 h-3" />
-            </Button>
-          )}
-        </div>
 
         {/* Audio Playback Timer */}
         {isPlayingAudio && playbackTimeRemaining > 0 && (
           <>
             <div className="w-px h-4 bg-border mx-1" />
-            <span className="text-xs text-muted-foreground">
+            <span 
+              className="text-xs text-muted-foreground fast-tooltip"
+              data-tooltip="Audio Playback Time Remaining"
+            >
               {playbackTimeRemaining}s
             </span>
           </>
         )}
-
-        {/* Spacer */}
-        <div className="flex-1" />
       </div>
 
       {/* Delete Confirmation Dialog */}

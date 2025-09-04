@@ -17,7 +17,6 @@ pub struct Session {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionStatus {
     Draft,
-    Recording,
     Complete,
     Archived,
 }
@@ -26,7 +25,6 @@ impl SessionStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             SessionStatus::Draft => "draft",
-            SessionStatus::Recording => "recording",
             SessionStatus::Complete => "complete",
             SessionStatus::Archived => "archived",
         }
@@ -39,10 +37,9 @@ impl FromStr for SessionStatus {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "draft" => Ok(SessionStatus::Draft),
-            "recording" => Ok(SessionStatus::Recording),
             "complete" => Ok(SessionStatus::Complete),
             "archived" => Ok(SessionStatus::Archived),
-            _ => Err(format!("Invalid status: {}. Must be one of: draft, recording, complete, archived", s)),
+            _ => Err(format!("Invalid status: {}. Must be one of: draft, complete, archived", s)),
         }
     }
 }

@@ -78,11 +78,51 @@ export const useTabs = () => {
     addToHistory(path);
   }, [navigate, addToHistory]);
 
+  const openNotesTab = useCallback((sessionId: string, title: string) => {
+    try {
+      const path = `/app/notes/${sessionId}`;
+      const tabId = addTab({
+        title,
+        path,
+        icon: 'MessageCircle',
+        closable: true,
+      });
+      navigate(path);
+      addToHistory(path);
+      return tabId;
+    } catch (error) {
+      console.error('Error opening notes tab:', error);
+      navigate(`/app/notes/${sessionId}`);
+      return null;
+    }
+  }, [addTab, navigate, addToHistory]);
+
+  const openTranscriptTab = useCallback((sessionId: string, title: string) => {
+    try {
+      const path = `/app/transcript/${sessionId}`;
+      const tabId = addTab({
+        title,
+        path,
+        icon: 'FileText',
+        closable: true,
+      });
+      navigate(path);
+      addToHistory(path);
+      return tabId;
+    } catch (error) {
+      console.error('Error opening transcript tab:', error);
+      navigate(`/app/transcript/${sessionId}`);
+      return null;
+    }
+  }, [addTab, navigate, addToHistory]);
+
   return {
     openSessionTab,
     openTab,
     updateSessionTab,
     navigateToTab,
+    openNotesTab,
+    openTranscriptTab,
   };
 };
 

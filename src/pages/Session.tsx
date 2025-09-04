@@ -9,6 +9,7 @@ import { useSessionsStore } from '@/store/sessions';
 import { Session as SessionType, TranscriptLineData, convertTranscriptLine } from '@/types';
 import { sessionsClient } from '@/lib/sessions';
 import { useAutoSave } from '@/hooks';
+import { useFullscreen } from '@/contexts/FullscreenContext';
 
 export default function Session() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,7 @@ export default function Session() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [playbackTimeRemaining, setPlaybackTimeRemaining] = useState(0);
   const { sessions, updateStatus, delete: deleteSession } = useSessionsStore();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
   const recordingTimeRef = useRef(0);
   // Real-time transcription handled in Rust backend via events
 
@@ -168,9 +170,7 @@ export default function Session() {
         setIsRecording(true);
         setIsPaused(false);
         
-        // Update session status to recording
-        await updateStatus({ id: session.id, status: 'recording' });
-        setSession(prev => prev ? { ...prev, status: 'recording' } : null);
+        // Session remains in draft status during recording
       }
     } catch (error) {
       console.error('Error in toggleRecording:', error);
@@ -248,7 +248,7 @@ export default function Session() {
     }
   }, [session?.id]);
 
-  const { saveImmediately: saveNotesImmediately, hasUnsavedChanges } = useAutoSave(
+  useAutoSave(
     saveNotesFunction, 
     notes,
     {
@@ -261,11 +261,6 @@ export default function Session() {
   const handleNotesChange = (newNotes: string) => {
     setNotes(newNotes);
     // The useAutoSave hook will automatically handle the debounced saving
-  };
-
-  const handleSaveNotes = async () => {
-    // For manual save requests, save immediately
-    saveNotesImmediately();
   };
 
   const handleDeleteSession = async () => {
@@ -349,6 +344,10 @@ export default function Session() {
     }
   };
 
+  const handleToggleFullscreen = () => {
+    toggleFullscreen();
+  };
+
   // Cleanup playback state when session changes
   useEffect(() => {
     setIsPlayingAudio(false);
@@ -428,6 +427,7 @@ export default function Session() {
           recordingTime={recordingTime}
           isPlayingAudio={isPlayingAudio}
           playbackTimeRemaining={playbackTimeRemaining}
+          isFullscreen={isFullscreen}
           onToggleRecording={toggleRecording}
           onPauseRecording={handlePauseRecording}
           onResumeRecording={handleResumeRecording}
@@ -436,6 +436,7 @@ export default function Session() {
           onPlayAudio={handlePlayAudio}
           onStopAudio={handleStopAudio}
           onDeleteSession={handleDeleteSession}
+          onToggleFullscreen={handleToggleFullscreen}
         />
 
         {/* VU Meter - Compact */}
@@ -466,8 +467,8 @@ export default function Session() {
             isRecording={isRecording}
             notes={notes}
             onNotesChange={handleNotesChange}
-            onSaveNotes={handleSaveNotes}
-            hasUnsavedChanges={hasUnsavedChanges}
+            sessionTitle={session?.title}
+            isFullscreen={isFullscreen}
           />
         </div>
       </div>
