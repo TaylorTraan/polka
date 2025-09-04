@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Mic, Square, Clock, Settings, Play, Pause } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components';
 import { formatTime, getStatusColor, getStatusLabel } from '@/lib/utils';
 
 

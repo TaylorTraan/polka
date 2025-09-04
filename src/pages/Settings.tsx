@@ -10,15 +10,9 @@ import {
   FolderOpen,
   Info
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Separator } from '@/components';
 import { useTheme } from '@/lib/theme';
-import PageTransition from '@/components/PageTransition';
-import { invoke } from '@tauri-apps/api/core';
+import { PageTransition } from '@/components';
 
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();

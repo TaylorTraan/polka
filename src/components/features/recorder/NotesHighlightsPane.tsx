@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, Star, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button, Card, CardContent } from '@/components';
 
 interface NotesHighlightsPaneProps {
   isRecording: boolean;

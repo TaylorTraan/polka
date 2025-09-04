@@ -1,27 +1,24 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { Archive as ArchiveIcon } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ViewToggle } from '@/components/ViewToggle';
-import { SessionList } from '@/components/session/SessionList';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorMessage, useToast, ViewToggle, SessionList, PageTransition } from '@/components';
 import { useSessionsStore } from '@/store/sessions';
 import { Session } from '@/types/session';
-import PageTransition from '@/components/PageTransition';
+import { useTabs } from '@/hooks/useTabs';
 
 export default function Archive() {
-  const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'grid'>('grid');
+  const { showError } = useToast();
   
   const { sessions, loading, error, load, clearError } = useSessionsStore();
+  const { openSessionTab } = useTabs();
 
   useEffect(() => {
     load();
   }, [load]);
 
   const handleSessionClick = (session: Session) => {
-    navigate(`/app/session/${session.id}`);
+    openSessionTab(session.id, session.title);
   };
 
 
@@ -31,7 +28,7 @@ export default function Archive() {
       await useSessionsStore.getState().updateStatus({ id: session.id, status: newStatus as any });
     } catch (error) {
       console.error('Error updating session status:', error);
-      alert('Failed to update session status. Please try again.');
+      showError('Failed to update session status. Please try again.');
     }
   };
 
@@ -67,21 +64,11 @@ export default function Archive() {
             </CardHeader>
             <CardContent>
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm"
-                >
-                  {error}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearError}
-                    className="ml-2 h-auto p-1 text-destructive hover:bg-destructive/20"
-                  >
-                    ×
-                  </Button>
-                </motion.div>
+                <ErrorMessage 
+                  message={error}
+                  onDismiss={clearError}
+                  variant="inline"
+                />
               )}
               
               {archivedSessions.length === 0 && !loading ? (

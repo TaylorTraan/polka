@@ -1,6 +1,6 @@
 import React from 'react';
 import { List, Grid3X3 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components';
 
 interface ViewToggleProps {
   view: 'list' | 'grid';

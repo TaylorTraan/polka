@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components';
 
 interface SkeletonRowProps {
   index: number;

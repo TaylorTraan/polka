@@ -4,16 +4,11 @@ import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, ErrorBanner, PageTransition, VUMeter, NotionToolbar, NotionLayout, CatchUpSummaryModal } from '@/components';
 import { useSessionsStore } from '@/store/sessions';
 import { Session as SessionType, TranscriptLineData, convertTranscriptLine } from '@/types';
 import { sessionsClient } from '@/lib/sessions';
 import { useAutoSave } from '@/hooks';
-import PageTransition from '@/components/PageTransition';
-import VUMeter from '@/components/VUMeter';
-import NotionToolbar from '@/components/NotionToolbar';
-import NotionLayout from '@/components/NotionLayout';
-import { CatchUpSummaryModal } from '@/components/recorder';
 
 export default function Session() {
   const { id } = useParams<{ id: string }>();
@@ -458,15 +453,10 @@ export default function Session() {
 
         {/* Error Display */}
         {recordingError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="px-6 py-3 bg-red-50 dark:bg-red-950/20 border-b border-red-200 dark:border-red-800"
-          >
-            <p className="text-red-800 dark:text-red-200 text-sm text-center">
-              Recording Error: {recordingError}
-            </p>
-          </motion.div>
+          <ErrorBanner 
+            message={`Recording Error: ${recordingError}`}
+            onDismiss={() => setRecordingError(null)}
+          />
         )}
 
         {/* Main Content - Notion Style */}

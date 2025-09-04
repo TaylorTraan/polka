@@ -1,18 +1,13 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorMessage, PageTransition, ViewToggle, SessionList, CreateSessionModal } from '@/components';
+import BulkDeleteConfirmationDialog from '@/components/features/common/BulkDeleteConfirmationDialog';
 import { Mic, Plus, BookOpen, Clock, CheckSquare, Square, Trash2, X } from 'lucide-react';
-import PageTransition from '@/components/PageTransition';
-import { ViewToggle } from '@/components/ViewToggle';
-import { SessionList, CreateSessionModal } from '@/components/session';
-import { BulkDeleteConfirmationDialog } from '@/components/dialog';
 import { useSessionsStore } from '@/store/sessions';
 import { Session } from '@/types';
+import { useTabs } from '@/hooks/useTabs';
 
 export default function Home() {
-  const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'grid'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
@@ -21,6 +16,7 @@ export default function Home() {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   
   const { sessions, loading, error, load, create, delete: deleteSession, clearError } = useSessionsStore();
+  const { openSessionTab } = useTabs();
 
   useEffect(() => {
     load();
@@ -30,12 +26,12 @@ export default function Home() {
     const newSession = await create({ title, course });
     if (newSession) {
       setShowCreateModal(false);
-      navigate(`/app/session/${newSession.id}`);
+      openSessionTab(newSession.id, newSession.title);
     }
   };
 
   const handleSessionClick = (session: Session) => {
-    navigate(`/app/session/${session.id}`);
+    openSessionTab(session.id, session.title);
   };
 
   const handleDeleteSession = async (session: Session) => {
@@ -288,21 +284,11 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm"
-                >
-                  {error}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearError}
-                    className="ml-2 h-auto p-1 text-destructive hover:bg-destructive/20"
-                  >
-                    ×
-                  </Button>
-                </motion.div>
+                <ErrorMessage 
+                  message={error}
+                  onDismiss={clearError}
+                  variant="inline"
+                />
               )}
               
               <SessionList

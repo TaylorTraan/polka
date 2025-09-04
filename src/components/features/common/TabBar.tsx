@@ -11,9 +11,9 @@ import {
   FileText,
   Plus
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components';
 import { useTabsStore, Tab } from '@/store/tabs';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const iconMap = {
   Home,
@@ -25,7 +25,7 @@ const iconMap = {
 
 export default function TabBar() {
   const navigate = useNavigate();
-  const location = useLocation();
+  // const location = useLocation();
   const {
     tabs,
     activeTabId,
