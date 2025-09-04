@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Bookmark, MessageCircle } from 'lucide-react';
-import { TranscriptLineData } from './recorder/TranscriptLine';
+import { TranscriptLineData } from '@/types';
 import TranscriptLine from './recorder/TranscriptLine';
 
 interface NotionLayoutProps {
@@ -10,6 +10,7 @@ interface NotionLayoutProps {
   notes: string;
   onNotesChange: (notes: string) => void;
   onSaveNotes: () => void;
+  hasUnsavedChanges?: boolean;
 }
 
 export default function NotionLayout({
@@ -17,13 +18,14 @@ export default function NotionLayout({
   isRecording,
   notes,
   onNotesChange,
-  onSaveNotes
+  onSaveNotes: _onSaveNotes, // Keep for interface compatibility but don't use
+  hasUnsavedChanges = false
 }: NotionLayoutProps) {
   const [activeView, setActiveView] = useState<'notes' | 'transcript'>('notes');
 
   const handleNotesChange = (value: string) => {
     onNotesChange(value);
-    onSaveNotes(); // Instant save like Google Docs
+    // Auto-save is now handled by the useAutoSave hook in the parent component
   };
 
   return (
@@ -80,7 +82,17 @@ export default function NotionLayout({
                   
                   {/* Auto-save indicator */}
                   <div className="mt-4 text-xs text-muted-foreground/60">
-                    Notes are automatically saved
+                    {hasUnsavedChanges ? (
+                      <span className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                        Saving changes...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full" />
+                        All changes saved
+                      </span>
+                    )}
                   </div>
                 </div>
               </motion.div>

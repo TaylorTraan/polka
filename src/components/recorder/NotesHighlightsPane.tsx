@@ -14,7 +14,7 @@ export default function NotesHighlightsPane({
   isRecording, 
   notes, 
   onNotesChange, 
-  onSaveNotes 
+  onSaveNotes: _onSaveNotes // Keep for interface compatibility but don't use
 }: NotesHighlightsPaneProps) {
   const [activeTab, setActiveTab] = useState<'notes' | 'highlights'>('notes');
   const [localNotes, setLocalNotes] = useState(notes);
@@ -27,8 +27,7 @@ export default function NotesHighlightsPane({
   const handleNotesChange = (value: string) => {
     setLocalNotes(value);
     onNotesChange(value);
-    // Instant auto-save like Google Docs
-    onSaveNotes();
+    // Auto-save is now handled by the useAutoSave hook in the parent component
   };
 
   const tabs = [

@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Bookmark, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import TranscriptLine, { TranscriptLineData } from './TranscriptLine';
+import TranscriptLine from './TranscriptLine';
+import { TranscriptLineData } from '@/types';
 
 interface TranscriptPaneProps {
   lines: TranscriptLineData[];

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Session, CreateSessionRequest, UpdateSessionStatusRequest, TranscriptLine } from '@/types/session';
+import { Session, CreateSessionRequest, UpdateSessionStatusRequest, TranscriptLine } from '@/types';
 
 export const sessionsClient = {
   async listSessions(): Promise<Session[]> {

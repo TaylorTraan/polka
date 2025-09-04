@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Session } from '../types/session';
+import { Session } from '@/types';
+import { formatDate, getStatusColor, formatDuration } from '@/lib/utils';
+import { useAsyncOperation } from '@/hooks';
 
 interface SessionManagerProps {
   className?: string;
@@ -8,73 +10,44 @@ interface SessionManagerProps {
 
 export const SessionManager: React.FC<SessionManagerProps> = ({ className }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [newSession, setNewSession] = useState({ title: '', course: '' });
+  
+  const loadSessionsOperation = useAsyncOperation(async () => {
+    const result = await invoke<Session[]>('cmd_list_sessions');
+    setSessions(result);
+    return result;
+  });
+
+  const createSessionOperation = useAsyncOperation(async (title: string, course: string) => {
+    const result = await invoke<Session>('cmd_create_session', { title, course });
+    setSessions(prev => [result, ...prev]);
+    setNewSession({ title: '', course: '' });
+    return result;
+  });
+
+  const updateStatusOperation = useAsyncOperation(async (id: string, status: string) => {
+    await invoke('cmd_update_session_status', { id, status });
+    await loadSessionsOperation.execute();
+  });
 
   // Load sessions on component mount
   useEffect(() => {
-    loadSessions();
+    loadSessionsOperation.execute();
   }, []);
-
-  const loadSessions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await invoke<Session[]>('cmd_list_sessions');
-      setSessions(result);
-    } catch (err) {
-      setError(err as string);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const createSession = async () => {
     if (!newSession.title.trim() || !newSession.course.trim()) {
-      setError('Title and course are required');
       return;
     }
-
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await invoke<Session>('cmd_create_session', {
-        title: newSession.title.trim(),
-        course: newSession.course.trim(),
-      });
-      
-      setSessions(prev => [result, ...prev]);
-      setNewSession({ title: '', course: '' });
-    } catch (err) {
-      setError(err as string);
-    } finally {
-      setLoading(false);
-    }
+    await createSessionOperation.execute(newSession.title.trim(), newSession.course.trim());
   };
 
   const updateStatus = async (id: string, status: string) => {
-    try {
-      setError(null);
-      await invoke('cmd_update_session_status', { id, status });
-      await loadSessions(); // Reload to get updated data
-    } catch (err) {
-      setError(err as string);
-    }
+    await updateStatusOperation.execute(id, status);
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString();
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'recording': return 'bg-red-100 text-red-800';
-      case 'complete': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const loading = loadSessionsOperation.loading || createSessionOperation.loading;
+  const error = loadSessionsOperation.error || createSessionOperation.error || updateStatusOperation.error;
 
   return (
     <div className={`p-6 ${className}`}>
@@ -134,11 +107,17 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ className }) => 
                     <h4 className="text-lg font-medium text-gray-900">{session.title}</h4>
                     <p className="text-sm text-gray-600">{session.course}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Created: {formatDate(session.created_at)}
+                      Created: {formatDate(session.created_at, { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </p>
                     {session.duration_ms > 0 && (
                       <p className="text-xs text-gray-500">
-                        Duration: {Math.round(session.duration_ms / 1000)}s
+                        Duration: {formatDuration(session.duration_ms)}
                       </p>
                     )}
                   </div>

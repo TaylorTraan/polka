@@ -20,8 +20,10 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Session } from '@/types/session';
-import DeleteConfirmationDialog from './DeleteConfirmationDialog';
+import { Session } from '@/types';
+import { formatTime, formatDate, getStatusColor, formatDuration } from '@/lib/utils';
+import { useConfirmationDialog } from '@/hooks';
+import { DeleteConfirmationDialog } from '@/components/dialog';
 
 interface NotionToolbarProps {
   session: Session;
@@ -57,37 +59,15 @@ export default function NotionToolbar({
   onDeleteSession
 }: NotionToolbarProps) {
   const [showFileMenu, setShowFileMenu] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
-      case 'recording': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300';
-      case 'complete': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
-    }
-  };
+  const deleteDialog = useConfirmationDialog();
 
   const handleDeleteClick = () => {
     setShowFileMenu(false);
-    setShowDeleteDialog(true);
+    deleteDialog.open();
   };
 
   const handleDeleteConfirm = async () => {
-    setIsDeleting(true);
-    try {
-      await onDeleteSession();
-      setShowDeleteDialog(false);
-    } finally {
-      setIsDeleting(false);
-    }
+    await deleteDialog.executeWithLoading(onDeleteSession);
   };
 
   return (
@@ -120,18 +100,18 @@ export default function NotionToolbar({
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status:</span>
-                    <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(session.status)}`}>
+                    <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(session.status, 'dark-aware')}`}>
                       {session.status}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Created:</span>
-                    <span>{new Date(session.created_at * 1000).toLocaleDateString()}</span>
+                    <span>{formatDate(session.created_at)}</span>
                   </div>
                   {session.duration_ms > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Duration:</span>
-                      <span>{Math.round(session.duration_ms / 1000)}s</span>
+                      <span>{formatDuration(session.duration_ms)}</span>
                     </div>
                   )}
                 </div>
@@ -260,10 +240,10 @@ export default function NotionToolbar({
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmationDialog
         session={session}
-        isOpen={showDeleteDialog}
+        isOpen={deleteDialog.isOpen}
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setShowDeleteDialog(false)}
-        isDeleting={isDeleting}
+        onCancel={deleteDialog.close}
+        isDeleting={deleteDialog.isLoading}
       />
     </motion.div>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Session } from '@/types/session';
+import { Session } from '@/types';
 import { SessionCard } from './SessionCard';
 import { Skeleton } from '@/components/ui/skeleton';
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
@@ -6,19 +6,14 @@ import { listen } from '@tauri-apps/api/event';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSessionsStore } from '@/store/sessions';
-import { Session as SessionType } from '@/types/session';
+import { Session as SessionType, TranscriptLineData, convertTranscriptLine } from '@/types';
 import { sessionsClient } from '@/lib/sessions';
+import { useAutoSave } from '@/hooks';
 import PageTransition from '@/components/PageTransition';
 import VUMeter from '@/components/VUMeter';
 import NotionToolbar from '@/components/NotionToolbar';
 import NotionLayout from '@/components/NotionLayout';
-
-// Real-time transcription now handled in Rust backend
-import { 
-  CatchUpSummaryModal,
-  TranscriptLineData,
-  convertTranscriptLine
-} from '@/components/recorder';
+import { CatchUpSummaryModal } from '@/components/recorder';
 
 export default function Session() {
   const { id } = useParams<{ id: string }>();
@@ -245,18 +240,37 @@ export default function Session() {
     setShowSummaryModal(true);
   };
 
+  // Auto-save notes with debouncing
+  const saveNotesFunction = useCallback(async (notesToSave: string) => {
+    if (session?.id) {
+      try {
+        await sessionsClient.writeNotes(session.id, notesToSave);
+        console.log('📝 Notes auto-saved successfully');
+      } catch (error) {
+        console.error('❌ Error auto-saving notes:', error);
+        // Could show a toast notification here
+      }
+    }
+  }, [session?.id]);
+
+  const { saveImmediately: saveNotesImmediately, hasUnsavedChanges } = useAutoSave(
+    saveNotesFunction, 
+    notes,
+    {
+      delay: 1000, // Save 1 second after user stops typing
+      saveOnUnmount: true,
+      saveOnPageHide: true
+    }
+  );
+
   const handleNotesChange = (newNotes: string) => {
     setNotes(newNotes);
+    // The useAutoSave hook will automatically handle the debounced saving
   };
 
   const handleSaveNotes = async () => {
-    if (session?.id) {
-      try {
-        await sessionsClient.writeNotes(session.id, notes);
-      } catch (error) {
-        console.error('Error saving notes:', error);
-      }
-    }
+    // For manual save requests, save immediately
+    saveNotesImmediately();
   };
 
   const handleDeleteSession = async () => {
@@ -475,6 +489,7 @@ export default function Session() {
             notes={notes}
             onNotesChange={handleNotesChange}
             onSaveNotes={handleSaveNotes}
+            hasUnsavedChanges={hasUnsavedChanges}
           />
         </div>
       </div>
