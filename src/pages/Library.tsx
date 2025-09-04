@@ -25,7 +25,7 @@ export default function Library() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showFilters, setShowFilters] = useState(false);
-  const { showError, showSuccess } = useToast();
+  const { showError } = useToast();
   
   const { sessions, loading, error, load, delete: deleteSession, clearError } = useSessionsStore();
   const { openSessionTab } = useTabs();
@@ -95,15 +95,6 @@ export default function Library() {
     }
   };
 
-  const handleDeleteLocalData = async (session: Session) => {
-    try {
-      // This would call a Tauri command to delete local session files
-      showSuccess(`Local data for "${session.title}" has been deleted.`);
-    } catch (error) {
-      console.error('Error deleting local data:', error);
-      showError('Failed to delete local data. Please try again.');
-    }
-  };
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -278,7 +269,6 @@ export default function Library() {
                   view={view}
                   onSessionClick={handleSessionClick}
                   onDeleteSession={handleDeleteSession}
-                  onDeleteLocalData={handleDeleteLocalData}
                   onStatusChange={handleStatusChange}
                 />
               )}
