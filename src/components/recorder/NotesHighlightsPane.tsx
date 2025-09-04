@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Star, Plus, Save } from 'lucide-react';
+import { BookOpen, Star, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -17,24 +17,18 @@ export default function NotesHighlightsPane({
   onSaveNotes 
 }: NotesHighlightsPaneProps) {
   const [activeTab, setActiveTab] = useState<'notes' | 'highlights'>('notes');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [localNotes, setLocalNotes] = useState(notes);
 
   // Update local notes when notes prop changes
   useEffect(() => {
     setLocalNotes(notes);
-    setHasUnsavedChanges(false);
   }, [notes]);
 
   const handleNotesChange = (value: string) => {
     setLocalNotes(value);
     onNotesChange(value);
-    setHasUnsavedChanges(true);
-  };
-
-  const handleSave = () => {
+    // Instant auto-save like Google Docs
     onSaveNotes();
-    setHasUnsavedChanges(false);
   };
 
   const tabs = [
@@ -78,37 +72,19 @@ export default function NotesHighlightsPane({
           <div className="space-y-4 h-full flex flex-col">
             <div className="flex items-center justify-between">
               <h4 className="font-medium">Session Notes</h4>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSave}
-                disabled={!hasUnsavedChanges}
-                className="flex items-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                Save
-              </Button>
             </div>
             
             <div className="flex-1 flex flex-col">
               <textarea
                 value={localNotes}
                 onChange={(e) => handleNotesChange(e.target.value)}
-                placeholder="Start typing your notes here... Supports Markdown formatting."
+                placeholder="Start typing your notes here..."
                 className="flex-1 w-full p-3 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
                 style={{ minHeight: '300px' }}
               />
               
-              {hasUnsavedChanges && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  You have unsaved changes
-                </p>
-              )}
-              
               <div className="mt-3 text-xs text-muted-foreground">
-                <p>Tips: Use Markdown syntax for formatting</p>
-                <p>• **bold**, *italic*, `code`</p>
-                <p>• # Heading, - List items</p>
+                <p>Notes are automatically saved as you type</p>
               </div>
             </div>
           </div>

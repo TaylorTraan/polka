@@ -129,6 +129,15 @@ impl Database {
         
         Ok(session_iter.next().transpose()?)
     }
+    
+    pub fn delete_session(&self, id: &str) -> Result<bool> {
+        let rows_affected = self.conn.execute(
+            "DELETE FROM sessions WHERE id = ?1",
+            [id],
+        )?;
+        
+        Ok(rows_affected > 0)
+    }
 }
 
 fn get_data_dir() -> Result<PathBuf> {
@@ -149,6 +158,18 @@ pub fn create_session_folder(session_id: &str) -> Result<PathBuf> {
     fs::create_dir_all(&session_dir)?;
     
     Ok(session_dir)
+}
+
+pub fn delete_session_folder(session_id: &str) -> Result<()> {
+    let sessions_dir = get_sessions_dir()?;
+    let session_dir = sessions_dir.join(session_id);
+    
+    // Remove the entire session directory and all its contents
+    if session_dir.exists() {
+        fs::remove_dir_all(&session_dir)?;
+    }
+    
+    Ok(())
 }
 
 pub fn init_db() -> Result<Database> {

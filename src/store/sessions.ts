@@ -11,6 +11,7 @@ interface SessionsState {
   load: () => Promise<void>;
   create: (request: CreateSessionRequest) => Promise<Session | null>;
   updateStatus: (request: UpdateSessionStatusRequest) => Promise<void>;
+  delete: (id: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -65,6 +66,21 @@ export const useSessionsStore = create<SessionsState>((set) => ({
       set({ 
         error: error instanceof Error ? error.message : 'Failed to update session status' 
       });
+    }
+  },
+
+  delete: async (id: string) => {
+    try {
+      set({ error: null }); // Don't set loading to true to prevent screen reset
+      await sessionsClient.deleteSession(id);
+      set(state => ({
+        sessions: state.sessions.filter(session => session.id !== id)
+      }));
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to delete session'
+      });
+      throw error; // Re-throw to handle in UI if needed
     }
   },
 

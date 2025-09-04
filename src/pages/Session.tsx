@@ -3,19 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { ArrowLeft, Play, Square, BookOpen } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSessionsStore } from '@/store/sessions';
 import { Session as SessionType } from '@/types/session';
 import { sessionsClient } from '@/lib/sessions';
 import PageTransition from '@/components/PageTransition';
 import VUMeter from '@/components/VUMeter';
+import NotionToolbar from '@/components/NotionToolbar';
+import NotionLayout from '@/components/NotionLayout';
 
 // Real-time transcription now handled in Rust backend
 import { 
-  RecorderLayout, 
-  RecordingControls, 
   CatchUpSummaryModal,
   TranscriptLineData,
   convertTranscriptLine
@@ -35,7 +34,7 @@ export default function Session() {
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [playbackTimeRemaining, setPlaybackTimeRemaining] = useState(0);
-  const { sessions, updateStatus } = useSessionsStore();
+  const { sessions, updateStatus, delete: deleteSession } = useSessionsStore();
   const recordingTimeRef = useRef(0);
   // Real-time transcription handled in Rust backend via events
 
@@ -260,6 +259,19 @@ export default function Session() {
     }
   };
 
+  const handleDeleteSession = async () => {
+    if (session?.id) {
+      try {
+        await deleteSession(session.id);
+        // Navigate back to home after successful deletion
+        navigate('/app/home');
+      } catch (error) {
+        console.error('Error deleting session:', error);
+        // Error is already handled by the store
+      }
+    }
+  };
+
   const handlePlayAudio = async () => {
     if (!session?.id) {
       setRecordingError('No session available');
@@ -376,69 +388,7 @@ export default function Session() {
     };
   }, [session?.id]);
 
-  // Debug function to test transcript operations
-  const handleTestTranscript = async () => {
-    if (!session?.id) {
-      console.log('🧪 No session ID available for test');
-      return;
-    }
-    
-    console.log('🧪 Testing transcript operations with session ID:', session.id);
-    console.log('🧪 Available sessions:', sessions.map(s => ({ id: s.id, title: s.title, transcript_path: s.transcript_path })));
-    
-    try {
-      // First, test basic Tauri connectivity with a simple command
-      console.log('🧪 Step 0: Testing basic backend connectivity...');
-      try {
-        const testResult = await invoke('test_backend');
-        console.log('🧪 Backend test result:', testResult);
-      } catch (error) {
-        console.error('🧪 Backend test failed:', error);
-        return;
-      }
-      
-      console.log('🧪 Step 0.5: Testing session listing...');
-      const allSessions = await sessionsClient.listSessions();
-      console.log('🧪 Basic Tauri works - got sessions:', allSessions.length);
-      
-      // First, test if we can read existing data
-      console.log('🧪 Step 1: Reading existing transcript...');
-      const existingResult = await sessionsClient.readTranscript(session.id);
-      console.log('🧪 Existing transcript:', existingResult);
-      
-      // Test write
-      console.log('🧪 Step 2: Writing new transcript line...');
-      const testTime = Date.now();
-      await sessionsClient.appendTranscriptLine(
-        session.id, 
-        testTime, 
-        'Test Speaker', 
-        `Manual test line at ${new Date().toLocaleTimeString()}`
-      );
-      console.log('🧪 Test write completed');
-      
-      // Test read again
-      console.log('🧪 Step 3: Reading transcript after write...');
-      const result = await sessionsClient.readTranscript(session.id);
-      console.log('🧪 Test read result:', result);
-      
-      // Update UI
-      if (result.length > 0) {
-        console.log('🧪 Step 4: Converting and updating UI...');
-        const frontendTranscript = result.map((line, index) => {
-          const converted = convertTranscriptLine(line, index);
-          console.log('🧪 Converting:', line, '→', converted);
-          return converted;
-        });
-        console.log('🧪 Setting transcript lines:', frontendTranscript);
-        setTranscriptLines(frontendTranscript);
-      } else {
-        console.log('🧪 No transcript lines returned');
-      }
-    } catch (error) {
-      console.error('🧪 Test failed:', error);
-    }
-  };
+
 
   if (!session) {
     return (
@@ -460,170 +410,73 @@ export default function Session() {
 
   return (
     <PageTransition>
-      <div className="p-8 max-w-4xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex items-center gap-4 mb-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBack}
-              className="h-10 w-10 p-0"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">{session.title}</h1>
-              {session.course && (
-                <p className="text-lg text-muted-foreground">{session.course}</p>
-              )}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Recording Controls */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8"
-        >
-          <RecordingControls
-            isRecording={isRecording}
-            isPaused={isPaused}
-            recordingTime={recordingTime}
-            status={session?.status || 'draft'}
-            onToggleRecording={toggleRecording}
-            onPauseRecording={handlePauseRecording}
-            onResumeRecording={handleResumeRecording}
-            onGenerateSummary={session?.status === 'complete' ? handleGenerateSummary : undefined}
-          />
-          
-          {/* VU Meter */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mt-4 flex justify-center"
+      <div className="h-screen flex flex-col">
+        {/* Back Button - Fixed Position */}
+        <div className="absolute top-4 left-4 z-50">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleBack}
+            className="h-10 w-10 p-0 bg-background/80 backdrop-blur border shadow-sm"
           >
-            <VUMeter level={audioLevel} isRecording={isRecording && !isPaused} />
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        </div>
+
+        {/* Notion-style Toolbar */}
+        <NotionToolbar
+          session={session}
+          isRecording={isRecording}
+          isPaused={isPaused}
+          recordingTime={recordingTime}
+          isPlayingAudio={isPlayingAudio}
+          playbackTimeRemaining={playbackTimeRemaining}
+          onToggleRecording={toggleRecording}
+          onPauseRecording={handlePauseRecording}
+          onResumeRecording={handleResumeRecording}
+          onAddBookmark={handleAddBookmark}
+          onGenerateSummary={handleGenerateSummary}
+          onPlayAudio={handlePlayAudio}
+          onStopAudio={handleStopAudio}
+          onDeleteSession={handleDeleteSession}
+        />
+
+        {/* VU Meter - Compact */}
+        {(isRecording && !isPaused) && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="px-6 py-2 border-b bg-background/95"
+          >
+            <div className="flex justify-center">
+              <VUMeter level={audioLevel} isRecording={true} />
+            </div>
           </motion.div>
+        )}
 
-          {/* Error Display */}
-          {recordingError && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-center"
-            >
-              <p className="text-red-800 dark:text-red-200 text-sm">
-                Recording Error: {recordingError}
-              </p>
-            </motion.div>
-          )}
-        </motion.div>
+        {/* Error Display */}
+        {recordingError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="px-6 py-3 bg-red-50 dark:bg-red-950/20 border-b border-red-200 dark:border-red-800"
+          >
+            <p className="text-red-800 dark:text-red-200 text-sm text-center">
+              Recording Error: {recordingError}
+            </p>
+          </motion.div>
+        )}
 
-        {/* Session Info */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
-                Session Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status:</span>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  session.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-                  session.status === 'recording' ? 'bg-red-100 text-red-800' :
-                  'bg-green-100 text-green-800'
-                }`}>
-                  {session.status}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Created:</span>
-                <span>{new Date(session.created_at * 1000).toLocaleDateString()}</span>
-              </div>
-              {session.duration_ms > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Duration:</span>
-                  <span>{Math.round(session.duration_ms / 1000)}s</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start">
-                <BookOpen className="w-4 h-4 mr-2" />
-                View Notes
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full justify-start"
-                onClick={isPlayingAudio ? handleStopAudio : handlePlayAudio}
-                disabled={!session?.audio_path}
-              >
-                {isPlayingAudio ? (
-                  <>
-                    <Square className="w-4 h-4 mr-2" />
-                    Stop Audio {playbackTimeRemaining > 0 ? `(${playbackTimeRemaining}s)` : ''}
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 mr-2" />
-                    Play Audio
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <BookOpen className="w-4 h-4 mr-2" />
-                View Transcript
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full justify-start"
-                onClick={handleTestTranscript}
-              >
-                <BookOpen className="w-4 h-4 mr-2" />
-                🧪 Test Transcript
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Recorder Interface */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 h-[600px]"
-        >
-          <RecorderLayout
+        {/* Main Content - Notion Style */}
+        <div className="flex-1 overflow-hidden">
+          <NotionLayout
             transcriptLines={transcriptLines}
             isRecording={isRecording}
             notes={notes}
-            onAddBookmark={handleAddBookmark}
             onNotesChange={handleNotesChange}
             onSaveNotes={handleSaveNotes}
           />
-        </motion.div>
+        </div>
       </div>
 
       {/* Catch-Up Summary Modal */}

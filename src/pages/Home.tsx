@@ -3,19 +3,25 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, Plus, BookOpen, Clock } from 'lucide-react';
+import { Mic, Plus, BookOpen, Clock, CheckSquare, Square, Trash2, X } from 'lucide-react';
 import PageTransition from '@/components/PageTransition';
 import { ViewToggle } from '@/components/ViewToggle';
 import { SessionList } from '@/components/SessionList';
 import { CreateSessionModal } from '@/components/CreateSessionModal';
 import { useSessionsStore } from '@/store/sessions';
+import { Session } from '@/types/session';
+import BulkDeleteConfirmationDialog from '@/components/BulkDeleteConfirmationDialog';
 
 export default function Home() {
   const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'grid'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   
-  const { sessions, loading, error, load, create, clearError } = useSessionsStore();
+  const { sessions, loading, error, load, create, delete: deleteSession, clearError } = useSessionsStore();
 
   useEffect(() => {
     load();
@@ -29,8 +35,77 @@ export default function Home() {
     }
   };
 
-  const handleSessionClick = (session: any) => {
+  const handleSessionClick = (session: Session) => {
     navigate(`/app/session/${session.id}`);
+  };
+
+  const handleDeleteSession = async (session: Session) => {
+    try {
+      await deleteSession(session.id);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      // Error is handled by the store
+    }
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    setSelectedSessions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId);
+      } else {
+        newSet.add(sessionId);
+      }
+      
+      // Exit selection mode if no sessions are selected
+      if (newSet.size === 0) {
+        setIsSelectionMode(false);
+      }
+      
+      return newSet;
+    });
+  };
+
+  const handleToggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    if (isSelectionMode) {
+      setSelectedSessions(new Set());
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedSessions.size === sessions.length) {
+      setSelectedSessions(new Set());
+      setIsSelectionMode(false);
+    } else {
+      setSelectedSessions(new Set(sessions.map(s => s.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedSessions.size === 0) return;
+    setShowBulkDeleteDialog(true);
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedSessions.size === 0) return;
+    
+    setIsBulkDeleting(true);
+    try {
+      // Delete all selected sessions
+      await Promise.all(
+        Array.from(selectedSessions).map(sessionId => deleteSession(sessionId))
+      );
+      
+      // Clear selection and exit selection mode
+      setSelectedSessions(new Set());
+      setIsSelectionMode(false);
+      setShowBulkDeleteDialog(false);
+    } catch (error) {
+      console.error('Error deleting sessions:', error);
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   return (
@@ -127,13 +202,67 @@ export default function Home() {
                 <div>
                   <CardTitle className="text-2xl font-bold">Sessions Library</CardTitle>
                   <CardDescription>
-                    {sessions.length > 0 
-                      ? `${sessions.length} session${sessions.length === 1 ? '' : 's'}`
-                      : 'No sessions yet'
+                    {isSelectionMode && selectedSessions.size > 0 
+                      ? `${selectedSessions.size} session${selectedSessions.size === 1 ? '' : 's'} selected`
+                      : sessions.length > 0 
+                        ? `${sessions.length} session${sessions.length === 1 ? '' : 's'}`
+                        : 'No sessions yet'
                     }
                   </CardDescription>
                 </div>
-                <ViewToggle view={view} onViewChange={setView} />
+                <div className="flex items-center gap-2">
+                  {!isSelectionMode ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleToggleSelectionMode}
+                        disabled={sessions.length === 0}
+                      >
+                        <CheckSquare className="w-4 h-4 mr-2" />
+                        Select
+                      </Button>
+                      <ViewToggle view={view} onViewChange={setView} />
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAll}
+                      >
+                        {selectedSessions.size === sessions.length ? (
+                          <>
+                            <Square className="w-4 h-4 mr-2" />
+                            Deselect All
+                          </>
+                        ) : (
+                          <>
+                            <CheckSquare className="w-4 h-4 mr-2" />
+                            Select All
+                          </>
+                        )}
+                      </Button>
+                      {selectedSessions.size > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleBulkDelete}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete ({selectedSessions.size})
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleToggleSelectionMode}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -160,6 +289,10 @@ export default function Home() {
                 loading={loading}
                 view={view}
                 onSessionClick={handleSessionClick}
+                onDeleteSession={handleDeleteSession}
+                isSelectionMode={isSelectionMode}
+                selectedSessions={selectedSessions}
+                onSelectSession={handleSelectSession}
               />
             </CardContent>
           </Card>
@@ -171,6 +304,15 @@ export default function Home() {
           onClose={() => setShowCreateModal(false)}
           onSubmit={handleCreateSession}
           loading={loading}
+        />
+
+        {/* Bulk Delete Confirmation Dialog */}
+        <BulkDeleteConfirmationDialog
+          sessions={sessions.filter(s => selectedSessions.has(s.id))}
+          isOpen={showBulkDeleteDialog}
+          onConfirm={handleBulkDeleteConfirm}
+          onCancel={() => setShowBulkDeleteDialog(false)}
+          isDeleting={isBulkDeleting}
         />
       </div>
     </PageTransition>
