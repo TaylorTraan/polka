@@ -5,4 +5,5 @@ export { default as TabBar } from './TabBar';
 
 // Dialog Components
 export { default as BulkDeleteConfirmationDialog } from './BulkDeleteConfirmationDialog';
+export { default as BulkStatusChangeModal } from './BulkStatusChangeModal';
 export { default as DeleteConfirmationDialog } from './DeleteConfirmationDialog';

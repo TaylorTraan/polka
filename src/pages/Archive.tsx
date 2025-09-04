@@ -10,7 +10,7 @@ export default function Archive() {
   const [view, setView] = useState<'list' | 'grid'>('grid');
   const { showError } = useToast();
   
-  const { sessions, loading, error, load, clearError } = useSessionsStore();
+  const { sessions, loading, error, load, delete: deleteSession, clearError } = useSessionsStore();
   const { openSessionTab } = useTabs();
 
   useEffect(() => {
@@ -21,6 +21,15 @@ export default function Archive() {
     openSessionTab(session.id, session.title);
   };
 
+
+  const handleDeleteSession = async (session: Session) => {
+    try {
+      await deleteSession(session.id);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      showError('Failed to delete session. Please try again.');
+    }
+  };
 
   const handleStatusChange = async (session: Session, newStatus: string) => {
     try {
@@ -91,6 +100,7 @@ export default function Archive() {
                   loading={loading}
                   view={view}
                   onSessionClick={handleSessionClick}
+                  onDeleteSession={handleDeleteSession}
                   onStatusChange={handleStatusChange}
                 />
               )}

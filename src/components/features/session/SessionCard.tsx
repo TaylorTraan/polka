@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, BookOpen, Play, MoreVertical, Trash2, Check, HardDrive, Archive, Edit3 } from 'lucide-react';
+import { Clock, BookOpen, Play, MoreVertical, Trash2, Check, Archive, Edit3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components';
 import DeleteConfirmationDialog from '@/components/features/common/DeleteConfirmationDialog';
 import { Session } from '@/types';
@@ -12,7 +12,6 @@ interface SessionCardProps {
   session: Session;
   onClick?: () => void;
   onDelete?: (session: Session) => void;
-  onDeleteLocalData?: (session: Session) => void;
   onStatusChange?: (session: Session, newStatus: string) => void;
   className?: string;
   isSelectionMode?: boolean;
@@ -24,7 +23,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   session, 
   onClick, 
   onDelete,
-  onDeleteLocalData,
   onStatusChange,
   className = '',
   isSelectionMode = false,
@@ -33,7 +31,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
 }) => {
   const deleteDialog = useConfirmationDialog();
   // const [isDeleting, setIsDeleting] = useState(false);
-  const [isDeletingLocalData, setIsDeletingLocalData] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
 
   const handleDeleteClick = (e: React.MouseEvent) => {
@@ -41,23 +38,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
     deleteDialog.open();
   };
 
-  const handleDeleteLocalDataClick = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
-    if (!onDeleteLocalData) return;
-    
-    const confirmed = window.confirm(
-      `Are you sure you want to delete all local data for "${session.title}"?\n\nThis will remove all recordings, transcripts, and notes for this session. This action cannot be undone.`
-    );
-    
-    if (confirmed) {
-      setIsDeletingLocalData(true);
-      try {
-        await onDeleteLocalData(session);
-      } finally {
-        setIsDeletingLocalData(false);
-      }
-    }
-  };
 
 
   const handleStatusChange = async (newStatus: string) => {
@@ -84,7 +64,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   };
 
   const handleCardClick = () => {
-    if (deleteDialog.isLoading || isDeletingLocalData || isArchiving) return;
+    if (deleteDialog.isLoading || isArchiving) return;
     
     if (isSelectionMode) {
       onSelect?.();
@@ -136,7 +116,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                   {session.status}
                 </span>
                 
-                {(onDelete || onDeleteLocalData || onStatusChange) && !isSelectionMode && (
+                {(onDelete || onStatusChange) && !isSelectionMode && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button 
@@ -144,7 +124,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                         size="sm" 
                         className="h-6 w-6 p-0 hover:bg-muted"
                         onClick={(e) => e.stopPropagation()}
-                        disabled={isDeletingLocalData || isArchiving}
+                        disabled={isArchiving}
                       >
                         <MoreVertical className="w-3 h-3" />
                       </Button>
@@ -182,19 +162,6 @@ export const SessionCard: React.FC<SessionCardProps> = ({
                             </DropdownMenuSubContent>
                           </DropdownMenuSub>
                           <DropdownMenuSeparator />
-                        </>
-                      )}
-                      {onDeleteLocalData && (
-                        <>
-                          <DropdownMenuItem 
-                            className="text-xs text-amber-600 dark:text-amber-400 focus:text-amber-600 dark:focus:text-amber-400"
-                            onClick={handleDeleteLocalDataClick}
-                            disabled={session.status === 'recording' || isDeletingLocalData}
-                          >
-                            <HardDrive className="w-3 h-3 mr-2" />
-                            {isDeletingLocalData ? 'Deleting...' : 'Delete Local Data'}
-                          </DropdownMenuItem>
-                          {onDelete && <DropdownMenuSeparator />}
                         </>
                       )}
                       {onDelete && (

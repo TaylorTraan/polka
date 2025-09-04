@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorMessage, PageTransition, ViewToggle, SessionList, CreateSessionModal } from '@/components';
-import BulkDeleteConfirmationDialog from '@/components/features/common/BulkDeleteConfirmationDialog';
-import { Mic, Plus, BookOpen, Clock, CheckSquare, Square, Trash2, X } from 'lucide-react';
+import { BulkDeleteConfirmationDialog, BulkStatusChangeModal } from '@/components/features/common';
+import { Mic, Plus, BookOpen, Clock, CheckSquare, Square, Trash2, X, Edit3 } from 'lucide-react';
 import { useSessionsStore } from '@/store/sessions';
 import { Session } from '@/types';
 import { useTabs } from '@/hooks/useTabs';
@@ -14,6 +14,8 @@ export default function Home() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showBulkStatusDialog, setShowBulkStatusDialog] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   
   const { sessions, loading, error, load, create, delete: deleteSession, clearError } = useSessionsStore();
   const { openSessionTab } = useTabs();
@@ -43,16 +45,6 @@ export default function Home() {
     }
   };
 
-  const handleDeleteLocalData = async (session: Session) => {
-    try {
-      // This would call a Tauri command to delete local session files
-      // For now, we'll show a success message
-      alert(`Local data for "${session.title}" has been deleted.`);
-    } catch (error) {
-      console.error('Error deleting local data:', error);
-      alert('Failed to delete local data. Please try again.');
-    }
-  };
 
 
   const handleStatusChange = async (session: Session, newStatus: string) => {
@@ -122,6 +114,35 @@ export default function Home() {
       console.error('Error deleting sessions:', error);
     } finally {
       setIsBulkDeleting(false);
+    }
+  };
+
+  const handleBulkStatusChange = () => {
+    if (selectedSessions.size === 0) return;
+    setShowBulkStatusDialog(true);
+  };
+
+  const handleBulkStatusChangeConfirm = async (newStatus: string) => {
+    if (selectedSessions.size === 0) return;
+    
+    setIsBulkUpdating(true);
+    try {
+      // Update status for all selected sessions
+      await Promise.all(
+        Array.from(selectedSessions).map(async (sessionId) => {
+          const { useSessionsStore } = await import('@/store/sessions');
+          await useSessionsStore.getState().updateStatus({ id: sessionId, status: newStatus as any });
+        })
+      );
+      
+      // Clear selection and exit selection mode
+      setSelectedSessions(new Set());
+      setIsSelectionMode(false);
+      setShowBulkStatusDialog(false);
+    } catch (error) {
+      console.error('Error updating session statuses:', error);
+    } finally {
+      setIsBulkUpdating(false);
     }
   };
 
@@ -261,14 +282,24 @@ export default function Home() {
                         )}
                       </Button>
                       {selectedSessions.size > 0 && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={handleBulkDelete}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete ({selectedSessions.size})
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleBulkStatusChange}
+                          >
+                            <Edit3 className="w-4 h-4 mr-2" />
+                            Change Status ({selectedSessions.size})
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleBulkDelete}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete ({selectedSessions.size})
+                          </Button>
+                        </>
                       )}
                       <Button
                         variant="ghost"
@@ -297,7 +328,6 @@ export default function Home() {
                 view={view}
                 onSessionClick={handleSessionClick}
                 onDeleteSession={handleDeleteSession}
-                onDeleteLocalData={handleDeleteLocalData}
                 onStatusChange={handleStatusChange}
                 isSelectionMode={isSelectionMode}
                 selectedSessions={selectedSessions}
@@ -322,6 +352,15 @@ export default function Home() {
           onConfirm={handleBulkDeleteConfirm}
           onCancel={() => setShowBulkDeleteDialog(false)}
           isDeleting={isBulkDeleting}
+        />
+
+        {/* Bulk Status Change Modal */}
+        <BulkStatusChangeModal
+          sessions={sessions.filter(s => selectedSessions.has(s.id))}
+          isOpen={showBulkStatusDialog}
+          onConfirm={handleBulkStatusChangeConfirm}
+          onCancel={() => setShowBulkStatusDialog(false)}
+          isUpdating={isBulkUpdating}
         />
       </div>
     </PageTransition>
