@@ -1,41 +1,34 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
-  Calendar, 
   SortAsc, 
   SortDesc, 
-  Grid3X3, 
-  List,
   BookOpen,
   X
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ViewToggle } from '@/components/ViewToggle';
-import { SessionList } from '@/components/session/SessionList';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ErrorMessage, useToast, ViewToggle, SessionList } from '@/components';
 import { useSessionsStore } from '@/store/sessions';
 import { Session } from '@/types/session';
-import PageTransition from '@/components/PageTransition';
+import { PageTransition } from '@/components';
+import { useTabs } from '@/hooks/useTabs';
 
 type SortBy = 'created_at' | 'title' | 'duration_ms' | 'status';
 type SortOrder = 'asc' | 'desc';
 type StatusFilter = 'all' | 'draft' | 'recording' | 'complete' | 'archived';
 
 export default function Library() {
-  const navigate = useNavigate();
   const [view, setView] = useState<'list' | 'grid'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const { showError, showSuccess } = useToast();
   
   const { sessions, loading, error, load, delete: deleteSession, clearError } = useSessionsStore();
+  const { openSessionTab } = useTabs();
 
   useEffect(() => {
     load();
@@ -80,7 +73,7 @@ export default function Library() {
   }, [sessions, searchQuery, sortBy, sortOrder, statusFilter]);
 
   const handleSessionClick = (session: Session) => {
-    navigate(`/app/session/${session.id}`);
+    openSessionTab(session.id, session.title);
   };
 
   const handleDeleteSession = async (session: Session) => {
@@ -98,17 +91,17 @@ export default function Library() {
       await useSessionsStore.getState().updateStatus({ id: session.id, status: newStatus as any });
     } catch (error) {
       console.error('Error updating session status:', error);
-      alert('Failed to update session status. Please try again.');
+      showError('Failed to update session status. Please try again.');
     }
   };
 
   const handleDeleteLocalData = async (session: Session) => {
     try {
       // This would call a Tauri command to delete local session files
-      alert(`Local data for "${session.title}" has been deleted.`);
+      showSuccess(`Local data for "${session.title}" has been deleted.`);
     } catch (error) {
       console.error('Error deleting local data:', error);
-      alert('Failed to delete local data. Please try again.');
+      showError('Failed to delete local data. Please try again.');
     }
   };
 
@@ -250,21 +243,11 @@ export default function Library() {
             
             <CardContent>
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm"
-                >
-                  {error}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearError}
-                    className="ml-2 h-auto p-1 text-destructive hover:bg-destructive/20"
-                  >
-                    ×
-                  </Button>
-                </motion.div>
+                <ErrorMessage 
+                  message={error}
+                  onDismiss={clearError}
+                  variant="inline"
+                />
               )}
               
               {filteredAndSortedSessions.length === 0 && !loading ? (

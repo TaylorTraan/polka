@@ -2,21 +2,20 @@ import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Library, Archive, Settings, LogOut, User, Circle, Sun, Moon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button, Avatar, AvatarFallback, AvatarImage } from '@/components';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
-import TabBar from '@/components/TabBar';
+import { TabBar } from '@/components';
 import { useTabsStore } from '@/store/tabs';
-import { useTabs } from '@/hooks/useTabs';
+import { useSessionsStore } from '@/store/sessions';
 
 export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { addTab, setActiveTab, addToHistory, updateTab } = useTabsStore();
-  const { navigateToTab } = useTabs();
+  const { addToHistory, updateTab } = useTabsStore();
+  const { sessions } = useSessionsStore();
 
   const handleLogout = () => {
     logout();
@@ -48,7 +47,10 @@ export default function AppLayout() {
         newTitle = 'Settings';
         newIcon = 'Settings';
       } else if (currentPath.startsWith('/app/session/')) {
-        newTitle = 'Session';
+        // Extract session ID from path and find the session
+        const sessionId = currentPath.split('/app/session/')[1];
+        const session = sessions.find(s => s.id === sessionId);
+        newTitle = session ? session.title : 'Session';
         newIcon = 'FileText';
       }
       
@@ -59,9 +61,9 @@ export default function AppLayout() {
         icon: newIcon,
       });
     }
-  }, [location.pathname, addTab, setActiveTab, addToHistory, updateTab]);
+  }, [location.pathname, addToHistory, updateTab, sessions]);
 
-  const handleQuickNavigation = (path: string, title: string, icon: string) => {
+  const handleQuickNavigation = (path: string, _title: string, _icon: string) => {
     navigate(path);
   };
 

@@ -1,23 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, BookOpen, Play, MoreVertical, Trash2, Check, HardDrive, Archive, Edit3 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
+import { Card, CardContent, CardHeader, CardTitle, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components';
+import DeleteConfirmationDialog from '@/components/features/common/DeleteConfirmationDialog';
 import { Session } from '@/types';
 import { formatDate, getStatusColor, formatDuration } from '@/lib/utils';
 import { getStatusIcon } from '@/lib/status-utils';
 import { useConfirmationDialog } from '@/hooks';
-import { DeleteConfirmationDialog } from '@/components/dialog';
 
 interface SessionCardProps {
   session: Session;
@@ -43,7 +32,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   onSelect
 }) => {
   const deleteDialog = useConfirmationDialog();
-  const [isDeleting, setIsDeleting] = useState(false);
+  // const [isDeleting, setIsDeleting] = useState(false);
   const [isDeletingLocalData, setIsDeletingLocalData] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
 
@@ -95,7 +84,7 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   };
 
   const handleCardClick = () => {
-    if (deleteDialog.isLoading || isDeleting || isDeletingLocalData || isArchiving) return;
+    if (deleteDialog.isLoading || isDeletingLocalData || isArchiving) return;
     
     if (isSelectionMode) {
       onSelect?.();

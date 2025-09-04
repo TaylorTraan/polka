@@ -12,18 +12,11 @@ import {
   Settings,
   Trash2
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components';
+import DeleteConfirmationDialog from '@/components/features/common/DeleteConfirmationDialog';
 import { Session } from '@/types';
 import { formatTime, formatDate, getStatusColor, formatDuration } from '@/lib/utils';
 import { useConfirmationDialog } from '@/hooks';
-import { DeleteConfirmationDialog } from '@/components/dialog';
 
 interface NotionToolbarProps {
   session: Session;

@@ -59,7 +59,10 @@ export function getStatusColor(
       : 'bg-red-100 text-red-800',
     complete: variant === 'dark-aware'
       ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'
-      : 'bg-green-100 text-green-800'
+      : 'bg-green-100 text-green-800',
+    archived: variant === 'dark-aware'
+      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+      : 'bg-blue-100 text-blue-800'
   };
 
   return baseClasses[status] || baseClasses.draft;

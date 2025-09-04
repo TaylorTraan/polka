@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Button, Input, Label, Checkbox, ErrorMessage } from '@/components';
+import { motion } from 'framer-motion';
 import { Mail, Lock, Circle, ArrowRight, Zap } from 'lucide-react';
 
 export default function Login() {
@@ -232,18 +229,13 @@ export default function Login() {
                 </button>
               </div>
 
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="text-sm text-destructive text-center bg-destructive/10 rounded-lg p-3 border border-destructive/20"
-                  >
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {error && (
+                <ErrorMessage 
+                  message={error}
+                  variant="toast"
+                  showIcon={true}
+                />
+              )}
 
               <Button
                 type="submit"

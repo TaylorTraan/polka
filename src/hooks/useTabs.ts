@@ -9,22 +9,39 @@ export const useTabs = () => {
   const openSessionTab = useCallback((sessionId: string, sessionTitle: string) => {
     try {
       const path = `/app/session/${sessionId}`;
-      const tabId = addTab({
-        title: sessionTitle,
-        path,
-        icon: 'FileText',
-        closable: true,
-      });
+      const state = useTabsStore.getState();
+      const currentActiveTab = state.tabs.find(tab => tab.id === state.activeTabId);
+      
+      if (currentActiveTab) {
+        // Update the current active tab instead of creating a new one
+        updateTab(currentActiveTab.id, {
+          title: sessionTitle,
+          path,
+          icon: 'FileText',
+        });
+      } else {
+        // Fallback: create a new tab if no active tab exists
+        const tabId = addTab({
+          title: sessionTitle,
+          path,
+          icon: 'FileText',
+          closable: true,
+        });
+        navigate(path);
+        addToHistory(path);
+        return tabId;
+      }
+      
       navigate(path);
       addToHistory(path);
-      return tabId;
+      return currentActiveTab?.id || null;
     } catch (error) {
       console.error('Error opening session tab:', error);
       // Fallback to direct navigation
       navigate(`/app/session/${sessionId}`);
       return null;
     }
-  }, [addTab, navigate, addToHistory]);
+  }, [addTab, updateTab, navigate, addToHistory]);
 
   const openTab = useCallback((title: string, path: string, icon?: string) => {
     try {

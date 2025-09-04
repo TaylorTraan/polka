@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Bookmark, MessageCircle } from 'lucide-react';
 import { TranscriptLineData } from '@/types';
-import TranscriptLine from './recorder/TranscriptLine';
+import TranscriptLine from '../features/recorder/TranscriptLine';
 
 interface NotionLayoutProps {
   transcriptLines: TranscriptLineData[];
