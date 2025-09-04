@@ -24,6 +24,7 @@ impl Database {
     }
     
     fn init_db(&self) -> Result<()> {
+        // First create the table with the original constraint if it doesn't exist
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,
@@ -38,6 +39,46 @@ impl Database {
             )",
             [],
         )?;
+
+        // Migration: Add archived status to existing tables
+        // Check if we need to migrate by trying to insert an archived status
+        let needs_migration = self.conn.execute(
+            "INSERT INTO sessions (id, title, course, created_at, status) VALUES ('__migration_test__', 'test', 'test', 0, 'archived')",
+            [],
+        ).is_err();
+
+        if needs_migration {
+            // Create new table with updated constraint
+            self.conn.execute(
+                "CREATE TABLE sessions_new (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    course TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    duration_ms INTEGER DEFAULT 0,
+                    status TEXT NOT NULL CHECK (status IN ('draft', 'recording', 'complete', 'archived')),
+                    notes_path TEXT,
+                    audio_path TEXT,
+                    transcript_path TEXT
+                )",
+                [],
+            )?;
+
+            // Copy data from old table
+            self.conn.execute(
+                "INSERT INTO sessions_new SELECT * FROM sessions",
+                [],
+            )?;
+
+            // Drop old table
+            self.conn.execute("DROP TABLE sessions", [])?;
+
+            // Rename new table
+            self.conn.execute("ALTER TABLE sessions_new RENAME TO sessions", [])?;
+        } else {
+            // Clean up test record
+            self.conn.execute("DELETE FROM sessions WHERE id = '__migration_test__'", [])?;
+        }
         
         Ok(())
     }
