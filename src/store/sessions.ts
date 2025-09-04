@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Session, CreateSessionRequest, UpdateSessionStatusRequest } from '@/types/session';
+import { Session, CreateSessionRequest, UpdateSessionStatusRequest } from '@/types';
 import { sessionsClient } from '@/lib/sessions';
 
 interface SessionsState {

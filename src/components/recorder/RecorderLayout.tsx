@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import TranscriptPane from './TranscriptPane';
 import NotesHighlightsPane from './NotesHighlightsPane';
-import { TranscriptLineData } from './TranscriptLine';
+import { TranscriptLineData } from '@/types';
 
 interface RecorderLayoutProps {
   transcriptLines: TranscriptLineData[];

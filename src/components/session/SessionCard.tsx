@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Clock, BookOpen, Play, MoreVertical, Trash2, Check } from 'lucide-react';
+import { MoreVertical, Trash2, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -9,8 +9,11 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Session } from '@/types/session';
-import DeleteConfirmationDialog from './DeleteConfirmationDialog';
+import { Session } from '@/types';
+import { formatDate, getStatusColor, formatDuration } from '@/lib/utils';
+import { getStatusIcon } from '@/lib/status-utils';
+import { useConfirmationDialog } from '@/hooks';
+import { DeleteConfirmationDialog } from '@/components/dialog';
 
 interface SessionCardProps {
   session: Session;
@@ -31,53 +34,20 @@ export const SessionCard: React.FC<SessionCardProps> = ({
   isSelected = false,
   onSelect
 }) => {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'recording': return 'bg-red-100 text-red-800';
-      case 'complete': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'draft': return <Clock className="w-3 h-3" />;
-      case 'recording': return <Play className="w-3 h-3" />;
-      case 'complete': return <BookOpen className="w-3 h-3" />;
-      default: return <Clock className="w-3 h-3" />;
-    }
-  };
+  const deleteDialog = useConfirmationDialog();
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
-    setShowDeleteDialog(true);
+    deleteDialog.open();
   };
 
   const handleDeleteConfirm = async () => {
     if (!onDelete) return;
-    
-    setIsDeleting(true);
-    try {
-      await onDelete(session);
-      setShowDeleteDialog(false);
-    } finally {
-      setIsDeleting(false);
-    }
+    await deleteDialog.executeWithLoading(() => onDelete(session));
   };
 
   const handleCardClick = () => {
-    if (isDeleting) return;
+    if (deleteDialog.isLoading) return;
     
     if (isSelectionMode) {
       onSelect?.();
@@ -163,13 +133,12 @@ export const SessionCard: React.FC<SessionCardProps> = ({
               </p>
             )}
             <div className="flex items-center text-xs text-muted-foreground">
-              <Clock className="w-3 h-3 mr-1" />
-              {formatDate(session.created_at)}
+              {getStatusIcon(session.status)}
+              <span className="ml-1">{formatDate(session.created_at)}</span>
             </div>
             {session.duration_ms > 0 && (
               <div className="flex items-center text-xs text-muted-foreground mt-1">
-                <Play className="w-3 h-3 mr-1" />
-                {Math.round(session.duration_ms / 1000)}s
+                <span>{formatDuration(session.duration_ms)}</span>
               </div>
             )}
           </CardContent>
@@ -179,10 +148,10 @@ export const SessionCard: React.FC<SessionCardProps> = ({
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmationDialog
         session={session}
-        isOpen={showDeleteDialog}
+        isOpen={deleteDialog.isOpen}
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setShowDeleteDialog(false)}
-        isDeleting={isDeleting}
+        onCancel={deleteDialog.close}
+        isDeleting={deleteDialog.isLoading}
       />
     </>
   );

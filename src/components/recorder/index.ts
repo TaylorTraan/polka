@@ -5,5 +5,4 @@ export { default as NotesHighlightsPane } from './NotesHighlightsPane';
 export { default as TranscriptLine } from './TranscriptLine';
 export { default as CatchUpSummaryModal } from './CatchUpSummaryModal';
 
-export type { TranscriptLineData } from './TranscriptLine';
-export { convertTranscriptLine } from './TranscriptLine';
+// TranscriptLineData and convertTranscriptLine are now exported from @/types

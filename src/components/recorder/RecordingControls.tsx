@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Mic, Square, Clock, Settings, Play, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatTime, getStatusColor, getStatusLabel } from '@/lib/utils';
 
 
 interface RecordingControlsProps {
@@ -24,39 +25,6 @@ export default function RecordingControls({
   onResumeRecording,
   onGenerateSummary
 }: RecordingControlsProps) {
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
-      case 'recording':
-        if (isPaused) {
-          return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200';
-        }
-        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200';
-      case 'complete':
-        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200';
-      default:
-        return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    if (status === 'recording' && isPaused) {
-      return 'PAUSED';
-    }
-    return status.toUpperCase();
-  };
 
   return (
     <motion.div
@@ -67,8 +35,8 @@ export default function RecordingControls({
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           {/* Status Chip */}
-          <div className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
-            {getStatusLabel(status)}
+          <div className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status, 'dark-aware')}`}>
+            {getStatusLabel(status, isPaused)}
           </div>
           
           {/* Timer */}
@@ -79,7 +47,7 @@ export default function RecordingControls({
               className="flex items-center gap-2 text-lg font-mono"
             >
               <Clock className={`w-5 h-5 ${isPaused ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`} />
-              {formatTime(recordingTime)}
+              {formatTime(recordingTime, true)}
               {isPaused && <span className="text-sm text-yellow-600 dark:text-yellow-400 ml-2">PAUSED</span>}
             </motion.div>
           )}

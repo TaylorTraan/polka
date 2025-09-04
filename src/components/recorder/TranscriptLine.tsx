@@ -1,23 +1,7 @@
 import { motion } from 'framer-motion';
 import { Clock, Bookmark } from 'lucide-react';
-import { TranscriptLine as BackendTranscriptLine } from '@/types/session';
-
-export interface TranscriptLineData {
-  id: string;
-  timestamp: number;
-  text: string;
-  speaker?: string;
-  isBookmarked?: boolean;
-}
-
-// Convert backend TranscriptLine to frontend TranscriptLineData
-export const convertTranscriptLine = (backendLine: BackendTranscriptLine, index: number): TranscriptLineData => ({
-  id: `line-${backendLine.t_ms}-${index}`,
-  timestamp: Math.floor(backendLine.t_ms / 1000), // Convert ms to seconds
-  text: backendLine.text,
-  speaker: backendLine.speaker,
-  isBookmarked: false,
-});
+import { TranscriptLineData } from '@/types';
+import { formatTime } from '@/lib/utils';
 
 interface TranscriptLineProps {
   line: TranscriptLineData;
@@ -25,11 +9,6 @@ interface TranscriptLineProps {
 }
 
 export default function TranscriptLine({ line, isLatest = false }: TranscriptLineProps) {
-  const formatTime = (timestamp: number) => {
-    const minutes = Math.floor(timestamp / 60);
-    const seconds = timestamp % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
 
   return (
     <motion.div

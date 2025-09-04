@@ -6,11 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Mic, Plus, BookOpen, Clock, CheckSquare, Square, Trash2, X } from 'lucide-react';
 import PageTransition from '@/components/PageTransition';
 import { ViewToggle } from '@/components/ViewToggle';
-import { SessionList } from '@/components/SessionList';
-import { CreateSessionModal } from '@/components/CreateSessionModal';
+import { SessionList, CreateSessionModal } from '@/components/session';
+import { BulkDeleteConfirmationDialog } from '@/components/dialog';
 import { useSessionsStore } from '@/store/sessions';
-import { Session } from '@/types/session';
-import BulkDeleteConfirmationDialog from '@/components/BulkDeleteConfirmationDialog';
+import { Session } from '@/types';
 
 export default function Home() {
   const navigate = useNavigate();
