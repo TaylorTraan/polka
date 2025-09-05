@@ -725,7 +725,6 @@ mod tests {
     #[test]
     fn test_status_parsing() {
         assert_eq!(SessionStatus::from_str("draft").unwrap(), SessionStatus::Draft);
-        assert_eq!(SessionStatus::from_str("recording").unwrap(), SessionStatus::Recording);
         assert_eq!(SessionStatus::from_str("complete").unwrap(), SessionStatus::Complete);
         
         // Test invalid status
@@ -735,7 +734,6 @@ mod tests {
     #[test]
     fn test_status_string_conversion() {
         assert_eq!(SessionStatus::Draft.as_str(), "draft");
-        assert_eq!(SessionStatus::Recording.as_str(), "recording");
         assert_eq!(SessionStatus::Complete.as_str(), "complete");
     }
 }

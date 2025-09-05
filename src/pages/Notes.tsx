@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Save } from 'lucide-react';
-import { Button, PageTransition } from '@/components';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Save, Type } from 'lucide-react';
+import { Button, PageTransition, RichTextEditor } from '@/components';
+import FormattingPanel from '@/components/features/common/FormattingPanel';
 import { useSessionsStore } from '@/store/sessions';
 import { useTabs } from '@/hooks/useTabs';
 import { useAutoSave } from '@/hooks';
@@ -10,22 +11,24 @@ import { useAutoSave } from '@/hooks';
 export default function Notes() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { sessions, updateSessionNotes } = useSessionsStore();
-  const { closeTab } = useTabs();
+  const { navigateToTab } = useTabs();
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showFormatting, setShowFormatting] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   // Find the session
   const session = sessions.find(s => s.id === sessionId);
 
   // Auto-save functionality
-  const { hasUnsavedChanges, save } = useAutoSave(
-    notes,
+  const { hasUnsavedChanges, saveImmediately } = useAutoSave(
     async (content: string) => {
       if (sessionId) {
         await updateSessionNotes(sessionId, content);
       }
     },
-    2000 // Auto-save after 2 seconds of inactivity
+    notes,
+    { delay: 2000 } // Auto-save after 2 seconds of inactivity
   );
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export default function Notes() {
           setNotes(notesContent);
         } catch (error) {
           console.error('Error loading notes:', error);
-          setNotes(session.notes || '');
+          setNotes(''); // Session doesn't have notes property, start with empty
         }
         setIsLoading(false);
       };
@@ -51,13 +54,11 @@ export default function Notes() {
   };
 
   const handleSave = async () => {
-    await save();
+    saveImmediately();
   };
 
   const handleBack = () => {
-    if (sessionId) {
-      closeTab(sessionId);
-    }
+    navigateToTab('/app');
   };
 
   if (isLoading) {
@@ -110,6 +111,21 @@ export default function Notes() {
               </div>
               
               <div className="flex items-center gap-3">
+                {/* Formatting Button */}
+                <Button
+                  variant={showFormatting ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setShowFormatting(!showFormatting)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  className="h-8 px-2"
+                  title="Text Formatting"
+                >
+                  <Type className="w-4 h-4" />
+                </Button>
+
                 {/* Auto-save indicator */}
                 <div className="text-xs text-muted-foreground">
                   {hasUnsavedChanges ? (
@@ -139,22 +155,37 @@ export default function Notes() {
           </div>
         </div>
 
+        {/* Formatting Panel */}
+        <AnimatePresence>
+          {showFormatting && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <FormattingPanel editorRef={editorRef} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Notes Editor */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full max-w-4xl mx-auto px-6 py-8">
+          <div className="h-full max-w-4xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="h-full"
+              className="h-full flex flex-col"
             >
-              <textarea
+              <RichTextEditor
+                ref={editorRef}
                 value={notes}
-                onChange={(e) => handleNotesChange(e.target.value)}
+                onChange={handleNotesChange}
                 placeholder="Start writing your notes..."
-                className="w-full h-full text-base leading-relaxed border-none outline-none resize-none bg-transparent placeholder:text-muted-foreground/60"
+                className="h-full"
                 style={{ 
-                  minHeight: 'calc(100vh - 200px)',
-                  fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'
+                  minHeight: 'calc(100vh - 200px)'
                 }}
               />
             </motion.div>

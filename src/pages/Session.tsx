@@ -28,6 +28,7 @@ export default function Session() {
   const { sessions, updateStatus, delete: deleteSession } = useSessionsStore();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
   const recordingTimeRef = useRef(0);
+  const editorRef = useRef<HTMLDivElement>(null);
   // Real-time transcription handled in Rust backend via events
 
   useEffect(() => {
@@ -437,6 +438,7 @@ export default function Session() {
           onStopAudio={handleStopAudio}
           onDeleteSession={handleDeleteSession}
           onToggleFullscreen={handleToggleFullscreen}
+          editorRef={editorRef}
         />
 
         {/* VU Meter - Compact */}
@@ -469,6 +471,7 @@ export default function Session() {
             onNotesChange={handleNotesChange}
             sessionTitle={session?.title}
             isFullscreen={isFullscreen}
+            editorRef={editorRef}
           />
         </div>
       </div>

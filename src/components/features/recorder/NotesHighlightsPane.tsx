@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { BookOpen, Star, Plus } from 'lucide-react';
-import { Button, Card, CardContent } from '@/components';
+import { useState, useEffect, useRef } from 'react';
+import { BookOpen, Star, Plus, Type } from 'lucide-react';
+import { Button, Card, CardContent, RichTextEditor } from '@/components';
+import FormattingPanel from '../common/FormattingPanel';
 
 interface NotesHighlightsPaneProps {
   isRecording: boolean;
@@ -17,6 +18,8 @@ export default function NotesHighlightsPane({
 }: NotesHighlightsPaneProps) {
   const [activeTab, setActiveTab] = useState<'notes' | 'highlights'>('notes');
   const [localNotes, setLocalNotes] = useState(notes);
+  const [showFormatting, setShowFormatting] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   // Update local notes when notes prop changes
   useEffect(() => {
@@ -70,14 +73,34 @@ export default function NotesHighlightsPane({
           <div className="space-y-4 h-full flex flex-col">
             <div className="flex items-center justify-between">
               <h4 className="font-medium">Session Notes</h4>
+              <Button
+                variant={showFormatting ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setShowFormatting(!showFormatting)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="h-7 px-2"
+                title="Text Formatting"
+              >
+                <Type className="w-3 h-3" />
+              </Button>
             </div>
             
             <div className="flex-1 flex flex-col">
-              <textarea
+              {showFormatting && (
+                <div className="mb-2">
+                  <FormattingPanel editorRef={editorRef} />
+                </div>
+              )}
+              
+              <RichTextEditor
+                ref={editorRef}
                 value={localNotes}
-                onChange={(e) => handleNotesChange(e.target.value)}
+                onChange={handleNotesChange}
                 placeholder="Start typing your notes here..."
-                className="flex-1 w-full p-3 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                className="flex-1"
                 style={{ minHeight: '300px' }}
               />
               

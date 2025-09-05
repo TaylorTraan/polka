@@ -10,7 +10,7 @@ export interface Session {
   transcript_path: string | null;
 }
 
-export type SessionStatus = 'draft' | 'complete' | 'archived';
+export type SessionStatus = 'draft' | 'recording' | 'complete' | 'archived';
 
 export interface CreateSessionRequest {
   title: string;
