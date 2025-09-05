@@ -31,16 +31,27 @@ const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(({
   const handleInput = useCallback(() => {
     if (editorRef.current) {
       // Clean up empty formatting spans that only contain zero-width spaces
+      // But only if they're not at the current cursor position
+      const selection = window.getSelection();
+      const currentRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+      
       const spans = editorRef.current.querySelectorAll('span[data-polka-format]');
       spans.forEach(span => {
         if (span.textContent === '\u200B' || span.textContent === '') {
-          // If span only contains zero-width space or is empty, remove it
-          const parent = span.parentNode;
-          if (parent) {
-            while (span.firstChild) {
-              parent.insertBefore(span.firstChild, span);
+          // Don't remove the span if the cursor is currently inside it
+          const isCursorInside = currentRange && 
+            span.contains(currentRange.startContainer) && 
+            span.contains(currentRange.endContainer);
+          
+          if (!isCursorInside) {
+            // If span only contains zero-width space or is empty, remove it
+            const parent = span.parentNode;
+            if (parent) {
+              while (span.firstChild) {
+                parent.insertBefore(span.firstChild, span);
+              }
+              parent.removeChild(span);
             }
-            parent.removeChild(span);
           }
         }
       });
