@@ -1,8 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Bookmark, FileText, X } from 'lucide-react';
 import { TranscriptLineData } from '@/types';
 import TranscriptLine from '../features/recorder/TranscriptLine';
+import RichTextEditor from '../features/common/RichTextEditor';
 
 interface NotionLayoutProps {
   transcriptLines: TranscriptLineData[];
@@ -11,6 +12,7 @@ interface NotionLayoutProps {
   onNotesChange: (notes: string) => void;
   sessionTitle?: string;
   isFullscreen?: boolean;
+  editorRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function NotionLayout({
@@ -19,9 +21,12 @@ export default function NotionLayout({
   notes,
   onNotesChange,
   sessionTitle = 'Notes',
-  isFullscreen = false
+  isFullscreen = false,
+  editorRef: externalEditorRef
 }: NotionLayoutProps) {
   const [showTranscript, setShowTranscript] = useState(false);
+  const internalEditorRef = useRef<HTMLDivElement>(null);
+  const editorRef = externalEditorRef || internalEditorRef;
 
   const handleNotesChange = (value: string) => {
     onNotesChange(value);
@@ -72,20 +77,18 @@ export default function NotionLayout({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="h-full p-8"
+            className="h-full"
           >
-            <div className="h-full flex flex-col">
-              <textarea
-                value={notes}
-                onChange={(e) => handleNotesChange(e.target.value)}
-                placeholder="Start writing your notes..."
-                className="flex-1 w-full text-base leading-relaxed border-none outline-none resize-none bg-transparent placeholder:text-muted-foreground/60"
-                style={{ 
-                  minHeight: 'calc(100vh - 200px)',
-                  fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'
-                }}
-              />
-            </div>
+            <RichTextEditor
+              ref={editorRef}
+              value={notes}
+              onChange={handleNotesChange}
+              placeholder="Start writing your notes..."
+              className="h-full"
+              style={{ 
+                minHeight: 'calc(100vh - 200px)'
+              }}
+            />
           </motion.div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
   Square, 
@@ -12,10 +12,12 @@ import {
   Mic,
   Pause,
   Settings,
-  Trash2
+  Trash2,
+  Type
 } from 'lucide-react';
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components';
 import DeleteConfirmationDialog from '@/components/features/common/DeleteConfirmationDialog';
+import FormattingPanel from '@/components/features/common/FormattingPanel';
 import { Session } from '@/types';
 import { formatTime, formatDate, getStatusColor, formatDuration } from '@/lib/utils';
 import { useConfirmationDialog } from '@/hooks';
@@ -37,6 +39,7 @@ interface NotionToolbarProps {
   onStopAudio: () => void;
   onDeleteSession: () => void;
   onToggleFullscreen: () => void;
+  editorRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function NotionToolbar({
@@ -55,9 +58,11 @@ export default function NotionToolbar({
   onPlayAudio,
   onStopAudio,
   onDeleteSession,
-  onToggleFullscreen
+  onToggleFullscreen,
+  editorRef
 }: NotionToolbarProps) {
   const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showFormatting, setShowFormatting] = useState(false);
   const deleteDialog = useConfirmationDialog();
 
   const handleDeleteClick = () => {
@@ -185,6 +190,25 @@ export default function NotionToolbar({
           )}
         </div>
 
+        <div className="w-px h-4 bg-border mx-1" />
+
+        {/* Formatting Button */}
+        {editorRef && (
+          <Button
+            variant={showFormatting ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setShowFormatting(!showFormatting)}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            className="h-7 px-2 fast-tooltip"
+            data-tooltip="Text Formatting"
+          >
+            <Type className="w-3 h-3" />
+          </Button>
+        )}
+
         {/* Spacer */}
         <div className="flex-1" />
 
@@ -194,7 +218,7 @@ export default function NotionToolbar({
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-7 px-2 text-xs fast-tooltip"
+              //className="h-7 px-2 text-xs fast-tooltip"
               data-tooltip="Session Details"
             >
               <Settings className="w-3 h-3 mr-1" />
@@ -261,6 +285,21 @@ export default function NotionToolbar({
           </>
         )}
       </div>
+
+      {/* Formatting Panel */}
+      <AnimatePresence>
+        {showFormatting && editorRef && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <FormattingPanel editorRef={editorRef} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmationDialog

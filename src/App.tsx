@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { ProtectedRoute } from '@/components';
 import { FullscreenProvider } from '@/contexts/FullscreenContext';
+import { FormattingProvider } from '@/contexts/FormattingContext';
 import AppLayout from '@/layouts/AppLayout';
 import Login from '@/pages/Login';
 import Home from '@/pages/Home';
@@ -24,7 +25,9 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <FullscreenProvider>
-                      <AppLayout />
+                      <FormattingProvider>
+                        <AppLayout />
+                      </FormattingProvider>
                     </FullscreenProvider>
                   </ProtectedRoute>
                 }
