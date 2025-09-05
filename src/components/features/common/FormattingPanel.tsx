@@ -22,9 +22,9 @@ import { useFormatting } from '@/contexts/FormattingContext';
 
 
 const FONT_SIZES = [
-  '8px', '9px', '10px', '11px', '12px', '14px', '16px', '18px', '20px', 
-  '24px', '28px', '32px', '36px', '48px', '72px'
+  '1', '2', '3', '4', '5', '6', '7'
 ];
+
 
 const FONT_FAMILIES = [
   { name: 'Arial', value: 'Arial, sans-serif' },
@@ -63,76 +63,35 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
     e.stopPropagation();
   };
 
-  const refocusEditor = useCallback(() => {
-    editorRef.current?.focus();
-  }, [editorRef]);
 
-  const normalizeLineHeight = useCallback((node: Node, root: HTMLElement | null) => {
-    let el = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
-    while (el && el !== root) {
-      if (el.style?.lineHeight) el.style.lineHeight = '';
-      el = el.parentElement;
-    }
-  }, []);
 
-  // Apply font size to selection or stored mark
+
+  // Simple font size application - just use execCommand
   const applyFontSize = useCallback((size: string) => {
     if (!editorRef.current) return;
     
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
+    editorRef.current.focus();
     
-    if (!range.collapsed) {
-      const span = document.createElement('span');
-      span.style.fontSize = size;
-      span.style.lineHeight = '';
-      span.setAttribute('data-polka-format', 'fontSize');
-
-      try {
-        range.surroundContents(span);
-      } catch {
-        const contents = range.extractContents();
-        span.appendChild(contents);
-        range.insertNode(span);
-      }
-
-      // Always select the wrapped content explicitly
-      const newRange = document.createRange();
-      newRange.selectNodeContents(span);
-      selection.removeAllRanges();
-      selection.addRange(newRange);
-
-      normalizeLineHeight(span, editorRef.current);
-    } else {
-      // Collapsed selection: create span with zero-width space and put caret inside it
-      const span = document.createElement('span');
-      span.style.fontSize = size;
-      span.style.lineHeight = '';
-      span.setAttribute('data-polka-format', 'fontSize');
-      span.innerHTML = '\u200B';
-
-      // Insert span at caret
-      range.insertNode(span);
-
-      // Place caret *inside* the span so typing goes into it
-      const caret = document.createRange();
-      caret.setStart(span, 1); // Position after the zero-width space
-      caret.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(caret);
-
-      // Normalize line height
-      normalizeLineHeight(span, editorRef.current);
-    }
+    // Apply font size using execCommand directly
+    document.execCommand('fontSize', false, size);
     
+    // Update UI to show the selected size
     updateFormatting({ fontSize: size });
-    refocusEditor();
-  }, [editorRef, updateFormatting, refocusEditor, normalizeLineHeight]);
+  }, [updateFormatting]);
+
+  // Step the font size by delta (-1 for A−, +1 for A+)
+  const applyRelativeFontSize = useCallback((delta: number) => {
+    const currentIdx = FONT_SIZES.indexOf(formatting.fontSize);
+    const nextIdx = Math.min(FONT_SIZES.length - 1, Math.max(0, currentIdx + delta));
+    const nextSize = FONT_SIZES[nextIdx];
+    
+    applyFontSize(nextSize);
+  }, [applyFontSize, formatting.fontSize]);
 
   // Apply color to selection or stored mark
   const applyColor = useCallback((color: string) => {
+    // Refocus editor to prevent focus loss
+    editorRef.current?.focus();
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
@@ -157,27 +116,28 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
       selection.removeAllRanges();
       selection.addRange(newRange);
     } else {
-      // For collapsed selection: create span with zero-width space
+      // For collapsed selection: create span with ZWSP text node
       const span = document.createElement('span');
       span.style.color = color;
-      span.innerHTML = '\u200B'; // Zero-width space instead of &nbsp;
-      
+      span.setAttribute('data-polka-format', 'color');
+      const text = document.createTextNode('\u200B');
+      span.appendChild(text);
       range.insertNode(span);
-      
-      // Place caret inside the span so typing continues with the color
       const caret = document.createRange();
-      caret.setStart(span, 1);
+      caret.setStart(text, 1);
       caret.collapse(true);
       selection.removeAllRanges();
       selection.addRange(caret);
+      return;
     }
     
     updateFormatting({ textColor: color });
-    refocusEditor();
-  }, [updateFormatting, refocusEditor]);
+  }, [updateFormatting, editorRef]);
 
   // Apply highlight color to selection or stored mark
   const applyHighlightColor = useCallback((color: string) => {
+    // Refocus editor to prevent focus loss
+    editorRef.current?.focus();
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
@@ -193,7 +153,6 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
         selection.addRange(range);
       }
       updateFormatting({ highlightColor: color });
-      refocusEditor();
       return;
     }
     
@@ -216,24 +175,23 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
       selection.removeAllRanges();
       selection.addRange(newRange);
     } else {
-      // For collapsed selection: create span with zero-width space
+      // For collapsed selection: create span with ZWSP text node
       const span = document.createElement('span');
       span.style.backgroundColor = color;
-      span.innerHTML = '\u200B';
-      
+      span.setAttribute('data-polka-format', 'highlight');
+      const text = document.createTextNode('\u200B');
+      span.appendChild(text);
       range.insertNode(span);
-      
-      // Place caret inside the span so typing continues with the highlight
       const caret = document.createRange();
-      caret.setStart(span, 1);
+      caret.setStart(text, 1);
       caret.collapse(true);
       selection.removeAllRanges();
       selection.addRange(caret);
+      return;
     }
     
     updateFormatting({ highlightColor: color });
-    refocusEditor();
-  }, [updateFormatting, refocusEditor]);
+  }, [updateFormatting, editorRef]);
 
   // Handle selection changes to update formatting state
   const handleSelectionChange = useCallback(() => {
@@ -249,11 +207,14 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
     if (element) {
       const computedStyle = window.getComputedStyle(element);
       
+      // Get font size from execCommand state
+      const fontSize = document.queryCommandValue('fontSize') || '3';
+      
       updateFormatting({
         bold: document.queryCommandState('bold'),
         italic: document.queryCommandState('italic'),
         underline: document.queryCommandState('underline'),
-        fontSize: computedStyle.fontSize || '16px',
+        fontSize: fontSize,
         fontFamily: computedStyle.fontFamily || 'Arial, sans-serif',
         textColor: computedStyle.color || '#000000',
         highlightColor: computedStyle.backgroundColor || 'transparent'
@@ -276,57 +237,17 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
     }
   }, [editorRef, formatting, updateFormatting]);
 
-  // Font family change
+  // Font family change - simple approach
   const handleFontFamilyChange = useCallback((family: string) => {
     if (!editorRef.current) return;
     
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
+    editorRef.current.focus();
     
-    const range = selection.getRangeAt(0);
+    // Use execCommand for font family
+    document.execCommand('fontName', false, family);
     
-    if (!range.collapsed) {
-      // Apply to selected text
-      const span = document.createElement('span');
-      span.style.fontFamily = family;
-      span.style.lineHeight = '';
-      
-      try {
-        range.surroundContents(span);
-      } catch {
-        const contents = range.extractContents();
-        span.appendChild(contents);
-        range.insertNode(span);
-      }
-
-      // Always select the wrapped content explicitly
-      const newRange = document.createRange();
-      newRange.selectNodeContents(span);
-      selection.removeAllRanges();
-      selection.addRange(newRange);
-
-      normalizeLineHeight(span, editorRef.current);
-    } else {
-      // For collapsed selection: create span with zero-width space
-      const span = document.createElement('span');
-      span.style.fontFamily = family;
-      span.style.lineHeight = '';
-      span.innerHTML = '\u200B';
-
-      range.insertNode(span);
-
-      // Place caret inside the span so typing continues with the font
-      const caret = document.createRange();
-      caret.setStart(span, 1);
-      caret.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(caret);
-
-      normalizeLineHeight(span, editorRef.current);
-    }
     updateFormatting({ fontFamily: family });
-    refocusEditor();
-  }, [editorRef, updateFormatting, refocusEditor, normalizeLineHeight]);
+  }, [updateFormatting]);
 
   // Alignment change
   const handleAlignmentChange = useCallback((alignment: 'left' | 'center' | 'right') => {
@@ -388,34 +309,37 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
 
       {/* Font Controls */}
       <div className="flex items-center gap-1">
-        <DropdownMenu modal={false}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onClick={() => applyRelativeFontSize(-1)}
+          title="Decrease font size"
+        >
+          −
+        </Button>
+
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 
               variant="ghost" 
               size="sm" 
               className="h-7 px-2 text-xs"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
             >
               <Type className="w-3 h-3 mr-1" />
               {formatting.fontSize}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            onCloseAutoFocus={(e: Event) => e.preventDefault()}
-            onPointerDownOutside={(e: any) => e.preventDefault()}
-            onFocusOutside={(e: any) => e.preventDefault()}
-          >
+          <DropdownMenuContent>
             {FONT_SIZES.map(size => (
               <DropdownMenuItem
                 key={size}
-                onSelect={(e) => {
-                  e.preventDefault();
+                onClick={() => {
                   applyFontSize(size);
-                  setTimeout(() => editorRef.current?.focus({ preventScroll: true }), 0);
                 }}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 className={formatting.fontSize === size ? 'bg-accent' : ''}
               >
                 {size}
@@ -424,33 +348,36 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu modal={false}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onClick={() => applyRelativeFontSize(1)}
+          title="Increase font size"
+        >
+          +
+        </Button>
+
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 
               variant="ghost" 
               size="sm" 
               className="h-7 px-2 text-xs"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
             >
               {FONT_FAMILIES.find(f => f.value === formatting.fontFamily)?.name || 'Arial'}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            onCloseAutoFocus={(e: Event) => e.preventDefault()}
-            onPointerDownOutside={(e: any) => e.preventDefault()}
-            onFocusOutside={(e: any) => e.preventDefault()}
-          >
+          <DropdownMenuContent>
             {FONT_FAMILIES.map(font => (
               <DropdownMenuItem
                 key={font.value}
-                onSelect={(e) => {
-                  e.preventDefault();
+                onClick={() => {
                   handleFontFamilyChange(font.value);
-                  setTimeout(() => editorRef.current?.focus({ preventScroll: true }), 0);
                 }}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 className={formatting.fontFamily === font.value ? 'bg-accent' : ''}
                 style={{ fontFamily: font.value }}
               >
@@ -523,7 +450,7 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
                   }`}
                   style={{ backgroundColor: color }}
                   onClick={() => applyColor(color)}
-                  onMouseDown={preventBlur}
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   title={color}
                   tabIndex={-1}
                 />
@@ -559,7 +486,7 @@ export default function FormattingPanel({ editorRef }: FormattingPanelProps) {
                     backgroundPosition: color === 'transparent' ? '0 0, 0 4px, 4px -4px, -4px 0px' : undefined
                   }}
                   onClick={() => applyHighlightColor(color)}
-                  onMouseDown={preventBlur}
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   title={color === 'transparent' ? 'No highlight' : color}
                   tabIndex={-1}
                 />

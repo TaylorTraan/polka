@@ -22,7 +22,7 @@ const defaultFormatting: FormattingState = {
   bold: false,
   italic: false,
   underline: false,
-  fontSize: '16px',
+  fontSize: '3',
   fontFamily: 'Arial, sans-serif',
   textColor: '#000000',
   highlightColor: 'transparent',
